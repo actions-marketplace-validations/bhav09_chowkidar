@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chowkidar"
-version = "0.2.0"
+version = "0.3.2"
 description = "Local-first LLM model deprecation watchdog — scans your configs, alerts on sunsets, and instructs your IDE to update."
 readme = "README.md"
 license = { text = "MIT" }
@@ -59,3 +59,8 @@ select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.poetry.group.dev.dependencies]
+twine = "^6.2.0"
+build = "^1.4.1"
+
