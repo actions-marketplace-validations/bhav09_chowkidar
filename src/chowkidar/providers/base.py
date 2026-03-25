@@ -29,6 +29,8 @@ class DeprecationNotice:
     breaking_changes: bool = False
     source_url: str | None = None
     raw_text: str | None = None
+    current_snapshot: str | None = None
+    privacy_tier: str = "unknown"
 
 
 @runtime_checkable

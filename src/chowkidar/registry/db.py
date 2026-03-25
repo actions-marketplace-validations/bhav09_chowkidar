@@ -21,6 +21,8 @@ class ModelRecord:
     replacement_confidence: str
     breaking_changes: bool
     source_url: str | None
+    current_snapshot: str | None
+    privacy_tier: str
     last_checked_at: str | None
     created_at: str | None
 
@@ -77,25 +79,29 @@ class Registry:
         replacement_confidence: str = "medium",
         breaking_changes: bool = False,
         source_url: str | None = None,
+        current_snapshot: str | None = None,
+        privacy_tier: str = "unknown",
     ) -> None:
         now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         self.conn.execute(
             """INSERT INTO models (id, provider, aliases, sunset_date, replacement,
-               replacement_confidence, breaking_changes, source_url, last_checked_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               replacement_confidence, breaking_changes, source_url, current_snapshot, privacy_tier, last_checked_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET
                  sunset_date = COALESCE(excluded.sunset_date, models.sunset_date),
                  replacement = COALESCE(excluded.replacement, models.replacement),
                  replacement_confidence = excluded.replacement_confidence,
                  breaking_changes = excluded.breaking_changes,
                  source_url = COALESCE(excluded.source_url, models.source_url),
+                 current_snapshot = excluded.current_snapshot,
+                 privacy_tier = excluded.privacy_tier,
                  last_checked_at = excluded.last_checked_at,
                  aliases = excluded.aliases
             """,
             (
                 model_id, provider, json.dumps(aliases or []),
                 sunset_date, replacement, replacement_confidence,
-                int(breaking_changes), source_url, now,
+                int(breaking_changes), source_url, current_snapshot, privacy_tier, now,
             ),
         )
         self.conn.commit()
@@ -138,6 +144,8 @@ class Registry:
             replacement_confidence=row["replacement_confidence"],
             breaking_changes=bool(row["breaking_changes"]),
             source_url=row["source_url"],
+            current_snapshot=row.keys().count("current_snapshot") > 0 and row["current_snapshot"] or None,
+            privacy_tier=row.keys().count("privacy_tier") > 0 and row["privacy_tier"] or "unknown",
             last_checked_at=row["last_checked_at"],
             created_at=row["created_at"],
         )

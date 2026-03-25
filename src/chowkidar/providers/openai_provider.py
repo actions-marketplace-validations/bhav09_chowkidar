@@ -17,32 +17,32 @@ OPENAI_DEPRECATIONS_URL = "https://platform.openai.com/docs/deprecations"
 OPENAI_MODELS_URL = "https://api.openai.com/v1/models"
 
 KNOWN_OPENAI_MODELS: list[dict[str, str | None]] = [
-    {"id": "gpt-3.5-turbo-0301", "sunset": "2024-06-13", "replacement": "gpt-3.5-turbo"},
-    {"id": "gpt-3.5-turbo-0613", "sunset": "2024-06-13", "replacement": "gpt-3.5-turbo"},
-    {"id": "gpt-3.5-turbo-1106", "sunset": "2025-06-01", "replacement": "gpt-4o-mini"},
-    {"id": "gpt-3.5-turbo-0125", "sunset": "2025-09-01", "replacement": "gpt-4o-mini"},
-    {"id": "gpt-3.5-turbo", "sunset": "2025-09-01", "replacement": "gpt-4o-mini"},
-    {"id": "gpt-4-0314", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-0613", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-32k-0314", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-32k-0613", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-1106-preview", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-0125-preview", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-turbo-preview", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4-vision-preview", "sunset": "2025-06-06", "replacement": "gpt-4o"},
-    {"id": "gpt-4o-2024-05-13", "sunset": None, "replacement": "gpt-4o"},
-    {"id": "gpt-4o", "sunset": None, "replacement": None},
-    {"id": "gpt-4o-mini", "sunset": None, "replacement": None},
-    {"id": "gpt-4.1", "sunset": None, "replacement": None},
-    {"id": "gpt-4.1-mini", "sunset": None, "replacement": None},
-    {"id": "gpt-4.1-nano", "sunset": None, "replacement": None},
-    {"id": "o1", "sunset": None, "replacement": None},
-    {"id": "o1-mini", "sunset": None, "replacement": None},
-    {"id": "o1-preview", "sunset": None, "replacement": "o1"},
-    {"id": "o3", "sunset": None, "replacement": None},
-    {"id": "o3-mini", "sunset": None, "replacement": None},
-    {"id": "o4-mini", "sunset": None, "replacement": None},
-    {"id": "text-embedding-ada-002", "sunset": None, "replacement": "text-embedding-3-small"},
+    {"id": "gpt-3.5-turbo-0301", "sunset": "2024-06-13", "replacement": "gpt-3.5-turbo", "snapshot": None, "privacy": "consumer_free"},
+    {"id": "gpt-3.5-turbo-0613", "sunset": "2024-06-13", "replacement": "gpt-3.5-turbo", "snapshot": None, "privacy": "consumer_free"},
+    {"id": "gpt-3.5-turbo-1106", "sunset": "2025-06-01", "replacement": "gpt-4o-mini", "snapshot": None, "privacy": "consumer_free"},
+    {"id": "gpt-3.5-turbo-0125", "sunset": "2025-09-01", "replacement": "gpt-4o-mini", "snapshot": None, "privacy": "consumer_free"},
+    {"id": "gpt-3.5-turbo", "sunset": "2025-09-01", "replacement": "gpt-4o-mini", "snapshot": "gpt-3.5-turbo-0125", "privacy": "consumer_free"},
+    {"id": "gpt-4-0314", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4-0613", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4-32k-0314", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4-32k-0613", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4-1106-preview", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4-0125-preview", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4-turbo-preview", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": "gpt-4-0125-preview", "privacy": "enterprise_default"},
+    {"id": "gpt-4-vision-preview", "sunset": "2025-06-06", "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4o-2024-05-13", "sunset": None, "replacement": "gpt-4o", "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4o", "sunset": None, "replacement": None, "snapshot": "gpt-4o-2024-08-06", "privacy": "enterprise_default"},
+    {"id": "gpt-4o-mini", "sunset": None, "replacement": None, "snapshot": "gpt-4o-mini-2024-07-18", "privacy": "enterprise_default"},
+    {"id": "gpt-4.1", "sunset": None, "replacement": None, "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4.1-mini", "sunset": None, "replacement": None, "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "gpt-4.1-nano", "sunset": None, "replacement": None, "snapshot": None, "privacy": "consumer_free"},
+    {"id": "o1", "sunset": None, "replacement": None, "snapshot": "o1-2024-12-17", "privacy": "enterprise_default"},
+    {"id": "o1-mini", "sunset": None, "replacement": None, "snapshot": "o1-mini-2024-09-12", "privacy": "enterprise_default"},
+    {"id": "o1-preview", "sunset": None, "replacement": "o1", "snapshot": "o1-preview-2024-09-12", "privacy": "enterprise_default"},
+    {"id": "o3", "sunset": None, "replacement": None, "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "o3-mini", "sunset": None, "replacement": None, "snapshot": "o3-mini-2025-01-31", "privacy": "enterprise_default"},
+    {"id": "o4-mini", "sunset": None, "replacement": None, "snapshot": None, "privacy": "enterprise_default"},
+    {"id": "text-embedding-ada-002", "sunset": None, "replacement": "text-embedding-3-small", "snapshot": None, "privacy": "enterprise_default"},
 ]
 
 
@@ -85,16 +85,17 @@ class OpenAIProvider:
         notices_by_id: dict[str, DeprecationNotice] = {}
 
         for m in KNOWN_OPENAI_MODELS:
-            if m["sunset"]:
-                model_id = f"openai/{m['id']}"
-                notices_by_id[model_id] = DeprecationNotice(
-                    model_id=model_id,
-                    provider="openai",
-                    sunset_date=m["sunset"],
-                    replacement=f"openai/{m['replacement']}" if m["replacement"] else None,
-                    replacement_confidence="high",
-                    source_url=OPENAI_DEPRECATIONS_URL,
-                )
+            model_id = f"openai/{m['id']}"
+            notices_by_id[model_id] = DeprecationNotice(
+                model_id=model_id,
+                provider="openai",
+                sunset_date=m["sunset"],
+                replacement=f"openai/{m['replacement']}" if m["replacement"] else None,
+                replacement_confidence="high",
+                source_url=OPENAI_DEPRECATIONS_URL if m["sunset"] else None,
+                current_snapshot=m.get("snapshot"),
+                privacy_tier=m.get("privacy", "unknown"),
+            )
 
         try:
             async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:

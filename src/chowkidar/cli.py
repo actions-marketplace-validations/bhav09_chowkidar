@@ -150,6 +150,8 @@ def sync() -> None:
                             replacement_confidence=dep.replacement_confidence,
                             breaking_changes=dep.breaking_changes,
                             source_url=dep.source_url,
+                            current_snapshot=dep.current_snapshot,
+                            privacy_tier=dep.privacy_tier,
                         )
                     total += len(deprecations)
                     console.print(f"  [green]✓[/green] {provider.name}: {len(deprecations)} models")
@@ -216,6 +218,8 @@ def check(
     table.add_column("Variable", style="cyan")
     table.add_column("Model", style="yellow")
     table.add_column("Status")
+    table.add_column("Snapshot", style="dim")
+    table.add_column("Privacy", style="dim")
     table.add_column("Sunset Date")
     table.add_column("Days Left")
     table.add_column("Replacement")
@@ -226,11 +230,16 @@ def check(
         record = registry.get_model(canonical)
 
         if record is None:
-            table.add_row(m["variable"], m["model"], "[dim]unknown[/dim]", "-", "-", "-", "-")
+            table.add_row(m["variable"], m["model"], "[dim]unknown[/dim]", "-", "-", "-", "-", "-", "-")
             continue
 
+        snapshot_str = record.current_snapshot or "-"
+        privacy_str = record.privacy_tier or "unknown"
+        if privacy_str == "consumer_free":
+            privacy_str = "[red]consumer_free (warn)[/red]"
+
         if record.sunset_date is None:
-            table.add_row(m["variable"], m["model"], "[green]active[/green]", "-", "-", "-", "-")
+            table.add_row(m["variable"], m["model"], "[green]active[/green]", snapshot_str, privacy_str, "-", "-", "-", "-")
             continue
 
         try:
@@ -258,7 +267,7 @@ def check(
         replacement = record.replacement or "-"
 
         table.add_row(
-            m["variable"], m["model"], status, record.sunset_date,
+            m["variable"], m["model"], status, snapshot_str, privacy_str, record.sunset_date,
             days_str, replacement, record.replacement_confidence,
         )
 
@@ -610,6 +619,24 @@ def update(
 
     console.print(table)
 
+    # Capability guardrail check
+    from .capabilities import diff_capabilities
+    capability_warnings = []
+    for u in updates:
+        diffs = diff_capabilities(u["old_model"], u["new_model"])
+        for d in diffs:
+            if d.change_type in ("degraded", "lost"):
+                capability_warnings.append(
+                    f"[red]Warning: {u['new_model']} has {d.change_type} {d.label} "
+                    f"({d.old_value} → {d.new_value}) compared to {u['old_model']}[/red]"
+                )
+
+    if capability_warnings:
+        console.print("\n[bold red]Capability Guardrail Warnings:[/bold red]")
+        for w in set(capability_warnings):
+            console.print(f"  {w}")
+        console.print("[dim]Ensure your application can handle these reduced capabilities before updating.[/dim]")
+
     if dry_run:
         console.print(f"\n[dim]{len(updates)} update(s) would be applied. Remove --dry-run to apply.[/dim]")
         return
@@ -788,6 +815,88 @@ def cost(
         console.print("[green]No deprecated models with known replacements and pricing data.[/green]")
     registry.close()
 
+
+# --- optimize ---
+
+@app.command()
+def optimize(
+    path: Optional[str] = typer.Argument(None, help="Project directory (default: CWD)"),
+) -> None:
+    """Find cost optimization opportunities across all models in the project."""
+    from .pricing import get_pricing
+    from .scanner import scan_directory
+    from .scanner.patterns import identify_provider
+
+    target = Path(path).resolve() if path else Path.cwd()
+    scan_result = scan_directory(target)
+
+    if scan_result.total_count == 0:
+        console.print("[green]No model strings found in project.[/green]")
+        return
+
+    # A simple mapping of known better/cheaper alternatives within the same provider
+    # In a real scenario, this could be dynamic from the registry
+    OPTIMIZATION_MAP = {
+        "openai/gpt-3.5-turbo": "openai/gpt-4o-mini",
+        "openai/gpt-4": "openai/gpt-4o",
+        "openai/gpt-4-turbo": "openai/gpt-4o",
+        "openai/gpt-4-turbo-preview": "openai/gpt-4o",
+        "anthropic/claude-2.1": "anthropic/claude-3-haiku-20240307",
+        "anthropic/claude-3-opus-20240229": "anthropic/claude-3.5-sonnet-20241022",
+        "google/gemini-1.0-pro": "google/gemini-1.5-flash",
+    }
+
+    table = Table(title="Cost Optimization Opportunities")
+    table.add_column("Variable", style="cyan")
+    table.add_column("Current Model", style="yellow")
+    table.add_column("Suggested", style="green")
+    table.add_column("Savings")
+    table.add_column("Context Diff")
+
+    found = False
+    for m in scan_result.all_models:
+        canonical = m["canonical"]
+        suggestion = OPTIMIZATION_MAP.get(canonical)
+        
+        if not suggestion:
+            continue
+
+        cur_pricing = get_pricing(canonical)
+        new_pricing = get_pricing(suggestion)
+
+        if not cur_pricing or not new_pricing:
+            continue
+
+        # Calculate blended savings (assuming 1 input token to 1 output token ratio for simplicity)
+        cur_cost = cur_pricing["input"] + cur_pricing["output"]
+        new_cost = new_pricing["input"] + new_pricing["output"]
+        
+        if new_cost < cur_cost:
+            savings_pct = ((cur_cost - new_cost) / cur_cost) * 100
+            
+            ctx_cur = cur_pricing["context"]
+            ctx_new = new_pricing["context"]
+            if ctx_new > ctx_cur:
+                ctx_diff = f"[green]+{ctx_new - ctx_cur}[/green]"
+            elif ctx_new < ctx_cur:
+                ctx_diff = f"[red]{ctx_new - ctx_cur}[/red]"
+            else:
+                ctx_diff = "[dim]same[/dim]"
+
+            table.add_row(
+                m["variable"],
+                m["model"],
+                suggestion.split("/")[-1],
+                f"[green]~{savings_pct:.0f}%[/green]",
+                ctx_diff
+            )
+            found = True
+
+    if found:
+        console.print(table)
+        console.print("\n[dim]Run 'chowkidar update' to apply replacements if they are also deprecated.[/dim]")
+    else:
+        console.print("[green]Your project is already using optimal models! No obvious cost savings found.[/green]")
 
 # --- diff ---
 

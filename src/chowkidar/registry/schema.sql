@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS models (
     replacement_confidence TEXT DEFAULT 'medium',
     breaking_changes INTEGER DEFAULT 0,
     source_url TEXT,
+    current_snapshot TEXT,
+    privacy_tier TEXT DEFAULT 'unknown',
     last_checked_at TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );

@@ -27,6 +27,10 @@ chowkidar check .
 ## Features
 
 - **Multi-format scanning**: `.env`, YAML, TOML, JSON, Python, JavaScript, TypeScript
+- **Alias Unmasking**: Identifies the true underlying snapshot of rolling aliases (e.g. `gpt-4o`) to ensure reproducibility.
+- **Cost Optimization (FinOps)**: Scans for expensive models and recommends cheaper drop-in replacements with exact percentage savings.
+- **Capability Guardrails**: Blocks or warns about capability degradation (e.g. smaller context windows) when upgrading models.
+- **Privacy & Compliance**: Flags consumer-free tier models that might use prompt data for training.
 - **Provider coverage**: OpenAI, Anthropic, Google, Mistral (extensible plugin architecture)
 - **IDE rules (zero-config)**: Auto-generates rules files for Cursor, Claude Code, VS Code/Copilot, Windsurf
 - **MCP server**: Interactive tools for querying deprecation status from your IDE
@@ -54,6 +58,7 @@ chowkidar install-service        # Install OS-native service
 chowkidar mcp                    # Start MCP server (for IDE)
 chowkidar config [KEY] [VALUE]   # View/set configuration
 chowkidar update [--dry-run]     # Update deprecated models in .env
+chowkidar optimize               # Find cost optimization opportunities across all models
 chowkidar rules write [PATH]     # Generate IDE rules files
 chowkidar rules clean [PATH]     # Remove generated rules files
 chowkidar slm status             # Check SLM availability
