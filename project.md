@@ -473,4 +473,28 @@ chowkidar/
 
 ---
 
-> **Next step**: User approves this ETB, then we begin Phase 1 implementation.
+## Feature Addition: Automatic Workspace Watching & Service Robustness (Phase 10)
+
+### Objectives
+1. **Background Monitoring (IDE-Closed)**: Ensure that folders are tracked for LLM model deprecations even when VS Code/other editors are completely closed.
+2. **Auto-Watch on Open (VS Code Integration)**: Update the VS Code extension to automatically run `chowkidar watch <workspace_folder>` on activation. This registers the workspace with the background database without requiring the developer to run CLI commands manually.
+3. **Notification Verification Utility**: Implement a `chowkidar test-notify` CLI command that lets developers fire a mock desktop notification immediately. This helps trigger OS prompt dialogs (macOS notification permission requests) and confirms that desktop notifications are correctly set up and configured.
+4. **Service Robustness**: Ensure that the background daemon works flawlessly via local OS scheduling utilities (launchd on macOS, systemd on Linux, Task Scheduler on Windows) and remains lightweight.
+
+### Implementation Plan
+
+#### Part A: CLI Notification Test Command
+- Add `test-notify` command in `src/chowkidar/cli.py`.
+- Calling `chowkidar test-notify` fires a mock desktop notification titled "Chowkidar Notification Test" with a message saying "If you see this, Chowkidar's cross-platform native notification system is functioning perfectly!".
+
+#### Part B: Automatic Workspace Watching in VS Code Extension
+- Implement `runWatch(projectPath)` in `extension/src/chowkidarBridge.ts` to call `chowkidar watch <projectPath>`.
+- In `extension/src/extension.ts`, call `runWatch` on activation for the current open workspace folder so it is automatically registered with the daemon database.
+
+#### Part C: Test Additions & Validation
+- Add tests in `tests/test_sentinel.py` to verify the new CLI notify commands and register functions work.
+- Validate by running `poetry run pytest`.
+
+---
+
+> **Next step**: User approves this ETB, then we begin Phase 10 implementation.

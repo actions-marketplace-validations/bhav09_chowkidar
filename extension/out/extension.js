@@ -76,6 +76,13 @@ function activate(context) {
         if (config.get("autoSyncOnStartup", false)) {
             vscode.commands.executeCommand("chowkidar.sync");
         }
+        // Auto-watch open workspace folders on startup
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (workspaceFolder) {
+            (0, chowkidarBridge_1.runWatch)(workspaceFolder).catch((err) => {
+                console.error("Chowkidar failed to auto-watch workspace:", err);
+            });
+        }
         (0, diagnostics_1.refreshAllDiagnostics)();
     }
 }

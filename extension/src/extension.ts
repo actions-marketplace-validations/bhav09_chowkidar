@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { findChowkidar, clearCache } from "./chowkidarBridge";
+import { findChowkidar, clearCache, runWatch } from "./chowkidarBridge";
 import {
   createDiagnosticCollection,
   scheduleDiagnosticRefresh,
@@ -61,6 +61,15 @@ export function activate(context: vscode.ExtensionContext): void {
     if (config.get<boolean>("autoSyncOnStartup", false)) {
       vscode.commands.executeCommand("chowkidar.sync");
     }
+    
+    // Auto-watch open workspace folders on startup
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceFolder) {
+      runWatch(workspaceFolder).catch((err) => {
+        console.error("Chowkidar failed to auto-watch workspace:", err);
+      });
+    }
+
     refreshAllDiagnostics();
   }
 }

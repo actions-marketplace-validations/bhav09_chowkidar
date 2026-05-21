@@ -201,3 +201,9 @@ export async function runSetup(): Promise<string> {
   const result = await runCommand(["setup", "--skip-slm"]);
   return result.stdout + result.stderr;
 }
+
+export async function runWatch(projectPath: string): Promise<string> {
+  const result = await runCommand(["watch", projectPath]);
+  return result.stdout + result.stderr;
+}
+

@@ -1141,6 +1141,26 @@ def test_migration(
     console.print(f"Avg latency: {result.avg_old_latency:.0f}ms → {result.avg_new_latency:.0f}ms")
 
 
+# --- test-notify ---
+
+@app.command(name="test-notify")
+def test_notify() -> None:
+    """Send a test desktop notification to verify setup and permissions."""
+    from .sentinel.notifier import notify
+
+    title = "Chowkidar Notification Test"
+    message = "If you see this, Chowkidar's cross-platform native notification system is functioning perfectly!"
+    
+    console.print("[yellow]Sending test notification...[/yellow]")
+    success = notify(title, message, urgency="critical")
+    if success:
+        console.print("[green]✓ Test notification sent successfully![/green]")
+        console.print("[dim]If you didn't see a banner, check your OS notifications settings to ensure Chowkidar is permitted.[/dim]")
+    else:
+        console.print("[red]✗ Failed to send test notification.[/red]")
+        raise typer.Exit(1)
+
+
 # --- hook subcommands ---
 
 @hook_app.command(name="install")

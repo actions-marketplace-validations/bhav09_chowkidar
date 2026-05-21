@@ -18,7 +18,8 @@ def _make_model(
     return ModelRecord(
         id=model_id, provider=provider, aliases=[], sunset_date=sunset_date,
         replacement=None, replacement_confidence="medium", breaking_changes=False,
-        source_url=None, last_checked_at=None, created_at=created_at, **kwargs,
+        source_url=None, current_snapshot=None, privacy_tier="unknown",
+        last_checked_at=None, created_at=created_at, **kwargs,
     )
 
 
