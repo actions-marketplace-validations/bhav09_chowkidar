@@ -217,3 +217,7 @@
 {"type":"create","session":{"id":"13983bba-9f80-4283-8a21-12d19dd268aa","projectKey":"fc0c917677fc7299c03043f636d58036","workspaceFolders":["/Users/bhavishya/VSC Projects/chowkidar"],"startMs":1779532644622,"focused":false,"idle":false,"ideInstanceId":"3829e653-aae3-4ecc-a6db-ebb137faa904","ideType":"cursor"}}
 {"type":"update","sessionId":"13983bba-9f80-4283-8a21-12d19dd268aa","patch":{"endMs":1779532686711}}
 {"type":"create","session":{"id":"e2a07fd0-5574-4ed1-b0d7-da6096b08251","projectKey":"fc0c917677fc7299c03043f636d58036","workspaceFolders":["/Users/bhavishya/VSC Projects/chowkidar"],"startMs":1779532686713,"focused":true,"idle":false,"ideInstanceId":"3829e653-aae3-4ecc-a6db-ebb137faa904","ideType":"cursor"}}
+{"type":"update","sessionId":"e2a07fd0-5574-4ed1-b0d7-da6096b08251","patch":{"endMs":1779532723116}}
+{"type":"create","session":{"id":"467302e6-e6d4-40fe-8ca5-fe81a571b670","projectKey":"fc0c917677fc7299c03043f636d58036","workspaceFolders":["/Users/bhavishya/VSC Projects/chowkidar"],"startMs":1779532723116,"focused":false,"idle":false,"ideInstanceId":"3829e653-aae3-4ecc-a6db-ebb137faa904","ideType":"cursor"}}
+{"type":"update","sessionId":"467302e6-e6d4-40fe-8ca5-fe81a571b670","patch":{"endMs":1779532733124}}
+{"type":"create","session":{"id":"32948107-596b-476b-851b-f7d48c4be385","projectKey":"fc0c917677fc7299c03043f636d58036","workspaceFolders":["/Users/bhavishya/VSC Projects/chowkidar"],"startMs":1779532733124,"focused":true,"idle":false,"ideInstanceId":"3829e653-aae3-4ecc-a6db-ebb137faa904","ideType":"cursor"}}
