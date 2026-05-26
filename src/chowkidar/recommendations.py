@@ -35,6 +35,47 @@ class Recommendation:
         return asdict(self)
 
 
+def _resolve_non_deprecated_replacement(
+    current_model: str,
+    replacement: str,
+    registry: Registry | None,
+) -> tuple[str | None, list[str]]:
+    """Follow provider replacement chains until the successor is not deprecated.
+
+    Returns the final safe successor and explanatory notes. If the chain ends at
+    a deprecated model without a further replacement, returns None.
+    """
+    if registry is None:
+        return replacement, []
+
+    notes: list[str] = []
+    visited = {normalize_model_id(current_model)}
+    candidate = replacement
+
+    for _ in range(10):
+        candidate_id = normalize_model_id(candidate)
+        if candidate_id in visited:
+            notes.append("Replacement chain contains a cycle; manual review is required.")
+            return None, notes
+        visited.add(candidate_id)
+
+        candidate_record = registry.get_model(candidate_id)
+        if candidate_record is None or candidate_record.sunset_date is None:
+            return candidate, notes
+
+        if not candidate_record.replacement:
+            notes.append(f"Replacement {candidate_id} is also deprecated and has no validated successor.")
+            return None, notes
+
+        notes.append(
+            f"Replacement {candidate_id} is also deprecated; traced forward to {candidate_record.replacement}."
+        )
+        candidate = candidate_record.replacement
+
+    notes.append("Replacement chain exceeded the maximum safe depth; manual review is required.")
+    return None, notes
+
+
 def build_recommendation(
     current_model: str,
     record: ModelRecord | None,
@@ -55,6 +96,16 @@ def build_recommendation(
         source = "provider_registry"
         reason = f"Provider registry lists {record.replacement} as the successor."
         risk = "Verify application prompts and response expectations before production use."
+        resolved, chain_notes = _resolve_non_deprecated_replacement(current_canonical, recommended, registry)
+        if chain_notes:
+            reason = f"{reason} {' '.join(chain_notes)}"
+        if resolved is None:
+            recommended = None
+            confidence = "none"
+            reason = f"No validated non-deprecated replacement is available. {' '.join(chain_notes)}"
+            risk = "Manual review required before changing this model."
+        else:
+            recommended = resolved
     elif fallback is not None:
         recommended, confidence, reason = fallback
         source = "local_fallback"

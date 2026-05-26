@@ -23,6 +23,7 @@ Usage:
     chowkidar diff <OLD_MODEL> <NEW_MODEL>
     chowkidar fix [PATH] [--branch] [--pr]
     chowkidar report [PATH] [--format] [--multi-project]
+    chowkidar showcase [PATH]
     chowkidar predict
     chowkidar dashboard
     chowkidar test-migration --old M --new M --prompts FILE
@@ -1362,6 +1363,121 @@ def report(
             console.print(f"[red]Failed to serve report: {e}[/red]")
     else:
         console.print(report_text)
+
+    registry.close()
+
+
+# --- showcase ---
+
+@app.command()
+def showcase(
+    path: Optional[str] = typer.Argument(None, help="Project directory (default: CWD)"),
+    sync_registry: bool = typer.Option(True, "--sync/--no-sync", help="Sync provider data before generating report"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open the generated report in a browser"),
+    serve: bool = typer.Option(False, "--serve/--no-serve", help="Serve report locally for Open in Editor actions"),
+) -> None:
+    """Force a demo run: sync, scan, save results, generate an HTML report, and open it."""
+    from .registry.db import Registry
+    from .report import generate_report
+    from .scanner import scan_directory
+
+    config = _get_config()
+    target = Path(path).resolve() if path else Path.cwd()
+    if not target.is_dir():
+        console.print(f"[red]Not a directory: {target}[/red]")
+        raise typer.Exit(1)
+
+    registry = Registry()
+    registry.init_db()
+    console.print(Panel(f"[bold cyan]Chowkidar Showcase Run[/bold cyan]\n{target}", subtitle=f"v{__version__}"))
+
+    if sync_registry:
+        from .providers.anthropic_provider import AnthropicProvider
+        from .providers.google_provider import GoogleProvider
+        from .providers.mistral_provider import MistralProvider
+        from .providers.openai_provider import OpenAIProvider
+
+        enabled = config.get("providers", ["openai", "anthropic", "google", "mistral"])
+
+        async def _sync() -> None:
+            providers = []
+            if "openai" in enabled:
+                providers.append(OpenAIProvider())
+            if "anthropic" in enabled:
+                providers.append(AnthropicProvider())
+            if "google" in enabled:
+                providers.append(GoogleProvider())
+            if "mistral" in enabled:
+                providers.append(MistralProvider())
+
+            for provider in providers:
+                try:
+                    with console.status(f"Syncing {provider.name}..."):
+                        deprecations = await provider.fetch_deprecations()
+                        for dep in deprecations:
+                            registry.upsert_model(
+                                model_id=dep.model_id,
+                                provider=dep.provider,
+                                sunset_date=dep.sunset_date,
+                                replacement=dep.replacement,
+                                replacement_confidence=dep.replacement_confidence,
+                                breaking_changes=dep.breaking_changes,
+                                source_url=dep.source_url,
+                                current_snapshot=getattr(dep, "current_snapshot", None),
+                                privacy_tier=getattr(dep, "privacy_tier", "unknown"),
+                            )
+                        registry.log_sync_success(provider.name)
+                        console.print(f"  [green]✓[/green] {provider.name}: {len(deprecations)} models")
+                except Exception as e:
+                    registry.log_sync_failure(provider.name, str(e))
+                    console.print(f"  [yellow]⚠[/yellow] {provider.name}: {e}")
+
+            try:
+                with console.status("Syncing Chatbot Arena benchmarks..."):
+                    from .benchmarks import sync_arena_benchmarks
+                    num_benchmarks = await sync_arena_benchmarks(registry, config=config)
+                    console.print(f"  [green]✓[/green] Benchmarks: {num_benchmarks} records")
+            except Exception as e:
+                console.print(f"  [yellow]⚠[/yellow] Benchmarks: {e}")
+
+        asyncio.run(_sync())
+    else:
+        console.print("  [dim]Skipping registry sync (--no-sync).[/dim]")
+
+    with console.status("Scanning project..."):
+        scan_result = scan_directory(target)
+        registry.save_scan_results(str(target), scan_result.all_models)
+        registry.update_watch_timestamp(str(target))
+    console.print(f"  [green]✓[/green] Scan complete: {scan_result.total_count} model reference(s)")
+
+    with console.status("Generating HTML report..."):
+        report_html = generate_report([target], "html", registry)
+        report_dir = CHOWKIDAR_HOME / "reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        report_file = report_dir / "latest_showcase_report.html"
+        report_file.write_text(report_html, encoding="utf-8")
+    console.print(f"  [green]✓[/green] Report written: {report_file}")
+
+    if open_browser:
+        import webbrowser
+        if serve:
+            import time
+            import urllib.parse
+            from .report_server import start_report_server
+
+            port = start_report_server("", report_file)
+            url = f"http://127.0.0.1:{port}/?path={urllib.parse.quote(str(report_file.resolve()))}"
+            console.print(f"[green]✓[/green] Serving showcase report at {url}")
+            webbrowser.open(url)
+            console.print("[dim]Press Ctrl+C to stop serving.[/dim]")
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Showcase report server stopped.[/yellow]")
+        else:
+            webbrowser.open(report_file.resolve().as_uri())
+            console.print("[green]✓[/green] Opened showcase report in browser.")
 
     registry.close()
 

@@ -75,3 +75,35 @@ def test_setup_command_logic(mock_full_setup, tmp_path):
         mock_scan_directory.assert_called_once_with(tmp_path)
         mock_registry.save_scan_results.assert_called_once()
         mock_registry.update_watch_timestamp.assert_called_once()
+
+
+def test_showcase_command_generates_report(tmp_path):
+    from chowkidar.cli import showcase
+
+    config = Config(tmp_path / ".chowkidar" / "config.toml")
+    mock_report = "<html><body>showcase</body></html>"
+
+    with patch("chowkidar.cli.CHOWKIDAR_HOME", tmp_path / ".chowkidar"), \
+         patch("chowkidar.cli._get_config", return_value=config), \
+         patch("chowkidar.registry.db.Registry") as mock_registry_class, \
+         patch("chowkidar.scanner.scan_directory") as mock_scan_directory, \
+         patch("chowkidar.report.generate_report", return_value=mock_report) as mock_generate_report:
+
+        mock_registry = MagicMock()
+        mock_registry_class.return_value = mock_registry
+
+        mock_scan_res = MagicMock()
+        mock_scan_res.all_models = [{"variable": "MODEL", "model": "gpt-3.5-turbo"}]
+        mock_scan_res.total_count = 1
+        mock_scan_directory.return_value = mock_scan_res
+
+        showcase(path=str(tmp_path), sync_registry=False, open_browser=False, serve=False)
+
+        report_file = tmp_path / ".chowkidar" / "reports" / "latest_showcase_report.html"
+        assert report_file.exists()
+        assert report_file.read_text(encoding="utf-8") == mock_report
+        mock_registry.init_db.assert_called_once()
+        mock_scan_directory.assert_called_once_with(tmp_path)
+        mock_registry.save_scan_results.assert_called_once_with(str(tmp_path), mock_scan_res.all_models)
+        mock_registry.update_watch_timestamp.assert_called_once_with(str(tmp_path))
+        mock_generate_report.assert_called_once()

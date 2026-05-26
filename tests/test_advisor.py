@@ -83,6 +83,39 @@ def test_recommendation_blocks_capability_loss():
     assert any(r["change_type"] == "lost" for r in recommendation.capability_diffs)
 
 
+def test_recommendation_traces_deprecated_successor(tmp_path):
+    registry = Registry(db_path=tmp_path / "recommendations.db")
+    registry.init_db()
+    registry.upsert_model(
+        model_id="openai/gpt-3.5-turbo",
+        provider="openai",
+        sunset_date="2025-09-01",
+        replacement="openai/gpt-4-turbo-preview",
+        replacement_confidence="high",
+    )
+    registry.upsert_model(
+        model_id="openai/gpt-4-turbo-preview",
+        provider="openai",
+        sunset_date="2025-06-06",
+        replacement="openai/gpt-4o",
+        replacement_confidence="high",
+    )
+    registry.upsert_model(
+        model_id="openai/gpt-4o",
+        provider="openai",
+        sunset_date=None,
+        replacement=None,
+        replacement_confidence="high",
+    )
+
+    current = registry.get_model("openai/gpt-3.5-turbo")
+    recommendation = build_recommendation("openai/gpt-3.5-turbo", current, registry=registry)
+
+    assert recommendation.recommended_model == "openai/gpt-4o"
+    assert "also deprecated" in recommendation.reason
+    registry.close()
+
+
 @patch("chowkidar.slm.selector.get_system_ram_gb")
 @patch("chowkidar.slm.selector.get_free_disk_gb")
 @patch("chowkidar.slm.selector.get_installed_ollama_models")
