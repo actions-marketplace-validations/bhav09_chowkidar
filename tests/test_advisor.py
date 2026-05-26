@@ -133,6 +133,50 @@ def test_select_best_slm(mock_installed, mock_disk, mock_ram, tmp_path):
     assert model == "qwen2.5:0.5b"
     assert "Constrained system resources" in reason
 
+    # 7. Reuse eligible arbitrary installed model (e.g., gemma4:e4b on 16GB RAM)
+    mock_installed.return_value = ["gemma4:e4b"]
+    mock_ram.return_value = 16.0
+    mock_disk.return_value = 50.0
+    with patch("chowkidar.slm.selector.get_model_size_from_manifest", return_value=9.6), \
+         patch("chowkidar.slm.selector.get_model_metadata", return_value={
+             "architecture": "gemma4",
+             "context_length": 131072,
+             "capabilities": ["completion", "vision"]
+         }):
+        model, reason = select_best_slm(config)
+        assert model == "gemma4:e4b"
+        assert "Reusing globally installed model 'gemma4:e4b'" in reason
+
+    # 8. Reject ineligible arbitrary model (e.g. size too large for 8GB RAM)
+    mock_installed.return_value = ["large-model:70b"]
+    mock_ram.return_value = 8.0
+    mock_disk.return_value = 50.0
+    with patch("chowkidar.slm.selector.get_model_size_from_manifest", return_value=42.0), \
+         patch("chowkidar.slm.selector.get_model_metadata", return_value={
+             "architecture": "llama",
+             "context_length": 8192,
+             "capabilities": ["completion"]
+         }):
+        model, reason = select_best_slm(config)
+        # Should fall back to standard selection for 8GB RAM (which is gemma3:1b)
+        assert model == "gemma3:1b"
+        assert "Standard system config" in reason
+
+    # 9. Reject arbitrary model with insufficient context length (e.g., < 2048)
+    mock_installed.return_value = ["old-model:latest"]
+    mock_ram.return_value = 16.0
+    mock_disk.return_value = 50.0
+    with patch("chowkidar.slm.selector.get_model_size_from_manifest", return_value=3.0), \
+         patch("chowkidar.slm.selector.get_model_metadata", return_value={
+             "architecture": "llama",
+             "context_length": 1024,
+             "capabilities": ["completion"]
+         }):
+        model, reason = select_best_slm(config)
+        # Should fall back to standard selection (gemma3:4b for 16GB RAM)
+        assert model == "gemma3:4b"
+        assert "Medium system config" in reason
+
 
 @patch("chowkidar.advisor._load_cache")
 @patch("chowkidar.advisor._save_cache")

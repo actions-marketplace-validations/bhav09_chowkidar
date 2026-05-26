@@ -157,6 +157,167 @@ def get_installed_ollama_models() -> list[str]:
     return []
 
 
+def get_max_safe_model_size_gb(ram_gb: float) -> float:
+    """Determine the maximum safe model size in GB based on system RAM."""
+    if ram_gb < 6.0:
+        return 2.0
+    elif ram_gb < 12.0:
+        return 4.0
+    elif ram_gb < 24.0:
+        return 10.0
+    else:
+        return 20.0
+
+
+def get_model_metadata(model_name: str) -> dict[str, any]:
+    """Run 'ollama show' for a model and parse its metadata."""
+    try:
+        res = subprocess.run(
+            ["ollama", "show", model_name],
+            capture_output=True, text=True, timeout=5
+        )
+        if res.returncode != 0:
+            return {}
+        
+        metadata = {
+            "context_length": None,
+            "parameters": None,
+            "capabilities": [],
+            "architecture": None,
+        }
+        
+        lines = res.stdout.splitlines()
+        current_section = None
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            
+            # Identify sections
+            if stripped == "Model":
+                current_section = "Model"
+                continue
+            elif stripped == "Capabilities":
+                current_section = "Capabilities"
+                continue
+            elif stripped in ("Parameters", "License", "System"):
+                current_section = stripped
+                continue
+                
+            # We are within a section
+            if current_section == "Model":
+                parts = [p.strip() for p in line.split("  ") if p.strip()]
+                if len(parts) >= 2:
+                    key = parts[0].lower()
+                    val = parts[1]
+                    if key == "context length":
+                        try:
+                            metadata["context_length"] = int(val)
+                        except ValueError:
+                            pass
+                    elif key == "parameters":
+                        metadata["parameters"] = val
+                    elif key == "architecture":
+                        metadata["architecture"] = val
+            elif current_section == "Capabilities":
+                metadata["capabilities"].append(stripped.lower())
+                
+        return metadata
+    except Exception as e:
+        logger.debug("Failed to get model metadata via ollama show for %s: %s", model_name, e)
+        return {}
+
+
+def get_model_size_from_manifest(model: str) -> float | None:
+    """Retrieve model file size in GB from local manifest file if it exists."""
+    import json
+    import os
+    from pathlib import Path
+
+    try:
+        # Extract tag and namespace
+        if ":" in model:
+            model_part, tag = model.split(":", 1)
+        else:
+            model_part, tag = model, "latest"
+            
+        if "/" in model_part:
+            namespace, base = model_part.split("/", 1)
+        else:
+            namespace, base = "library", model_part
+            
+        env_models = os.environ.get("OLLAMA_MODELS")
+        if env_models:
+            base_dir = Path(env_models)
+        else:
+            base_dir = Path.home() / ".ollama" / "models"
+            
+        manifest_file = base_dir / "manifests" / "registry.ollama.ai" / namespace / base / tag
+        if manifest_file.exists():
+            data = json.loads(manifest_file.read_text())
+            for layer in data.get("layers", []):
+                if layer.get("mediaType") == "application/vnd.ollama.image.model":
+                    size_bytes = layer.get("size", 0)
+                    return size_bytes / (1024 ** 3)
+    except Exception as e:
+        logger.debug("Failed to parse manifest size for %s: %s", model, e)
+    return None
+
+
+def parse_parameter_size_from_name(model_name: str) -> float | None:
+    """Try to parse the parameter count (in Billions) from a model name or tag."""
+    import re
+    match = re.search(r'(\d+(?:\.\d+)?)[bB]', model_name)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            pass
+    return None
+
+
+def is_arbitrary_model_eligible(model_name: str, ram_gb: float, free_disk_gb: float) -> tuple[bool, str]:
+    """Evaluate if an arbitrary globally installed model is suitable and safe to reuse."""
+    # 1. Fetch metadata via filesystem manifest size first
+    size_gb = get_model_size_from_manifest(model_name)
+    
+    # 2. Get max safe limit based on system RAM
+    max_safe_size = get_max_safe_model_size_gb(ram_gb)
+    
+    if size_gb is not None:
+        if size_gb > max_safe_size:
+            return False, f"Model size ({size_gb:.1f} GB) exceeds safe hardware limit for your RAM ({max_safe_size:.1f} GB limit)"
+    else:
+        # If we couldn't get manifest size, try to parse parameters from the name
+        params = parse_parameter_size_from_name(model_name)
+        if params is not None:
+            estimated_size = params * 0.7
+            if estimated_size > max_safe_size:
+                return False, f"Model parameters ({params:.1f}B, est. {estimated_size:.1f} GB) exceed safe hardware limit ({max_safe_size:.1f} GB limit)"
+                
+    # 3. Query capabilities and context length via 'ollama show'
+    metadata = get_model_metadata(model_name)
+    if metadata:
+        arch = (metadata.get("architecture") or "").lower()
+        if "embed" in arch or "bert" in arch:
+            return False, f"Model architecture '{arch}' is suitable for embeddings only, not text completion"
+            
+        caps = metadata.get("capabilities") or []
+        if caps and "completion" not in caps:
+            return False, "Model does not support text completion capability"
+            
+        ctx = metadata.get("context_length")
+        if ctx is not None and ctx < 2048:
+            return False, f"Model context length ({ctx}) is below the required 2048 tokens minimum"
+            
+    # Standard security & sanity checks on the model name
+    model_lower = model_name.lower()
+    if "embed" in model_lower or "rerank" in model_lower or "bge-" in model_lower:
+        return False, "Model name suggests it is an embedding/reranking model only"
+        
+    return True, "Passed strict capability and hardware-safety checks"
+
+
 def select_best_slm(config: Config | None = None) -> tuple[str, str]:
     """Select the best local SLM based on system resources and pre-installed models.
 
@@ -207,7 +368,26 @@ def select_best_slm(config: Config | None = None) -> tuple[str, str]:
         if has_compat:
             return inst, f"Reusing existing installed compatible model '{inst}'"
 
-    # 2. No pre-installed compatible models found. Select candidate based on system hardware resources
+    # 3. Check arbitrary installed models with a strict capability/hardware bar
+    eligible_arbitrary_models = []
+    for inst in installed:
+        # Skip if already handled by the compatible checks above
+        is_known = any(c in inst or inst in c for c in all_candidates)
+        if is_known:
+            continue
+            
+        eligible, reason = is_arbitrary_model_eligible(inst, ram_gb, free_disk)
+        if eligible:
+            size_gb = get_model_size_from_manifest(inst) or parse_parameter_size_from_name(inst) or 0.0
+            eligible_arbitrary_models.append((inst, size_gb))
+            
+    if eligible_arbitrary_models:
+        # Sort by size descending to pick the most capable eligible model
+        eligible_arbitrary_models.sort(key=lambda x: x[1], reverse=True)
+        best_arbitrary = eligible_arbitrary_models[0][0]
+        return best_arbitrary, f"Reusing globally installed model '{best_arbitrary}' passing strict capability and hardware-safety checks"
+
+    # 4. No pre-installed compatible models found. Select candidate based on system hardware resources
     if ram_gb >= 24.0 and free_disk >= SLM_TIERS["large"]["required_disk_gb"]:
         selected = SLM_TIERS["large"]["models"][0]
         reason = (

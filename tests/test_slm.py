@@ -157,3 +157,71 @@ class TestFilesystemFallback:
             mock_logger.info.assert_any_call(
                 "Model '%s' is already installed globally via Ollama. Skipping download.", "gemma3:1b"
             )
+
+
+class TestSLMMetadataAndParsing:
+    def test_parse_parameter_size_from_name(self):
+        from chowkidar.slm.selector import parse_parameter_size_from_name
+        assert parse_parameter_size_from_name("qwen2.5:0.5b") == 0.5
+        assert parse_parameter_size_from_name("gemma3:1b") == 1.0
+        assert parse_parameter_size_from_name("llama3:70B") == 70.0
+        assert parse_parameter_size_from_name("invalid") is None
+
+    @patch("chowkidar.slm.selector.subprocess.run")
+    def test_get_model_metadata(self, mock_run):
+        from unittest.mock import MagicMock
+        from chowkidar.slm.selector import get_model_metadata
+        
+        mock_res = MagicMock()
+        mock_res.returncode = 0
+        mock_res.stdout = """
+Model
+  architecture        gemma4
+  parameters          8.0B
+  context length      131072
+
+Capabilities
+  completion
+  vision
+
+Parameters
+  temperature    1
+"""
+        mock_run.return_value = mock_res
+        
+        meta = get_model_metadata("gemma4:e4b")
+        assert meta["architecture"] == "gemma4"
+        assert meta["parameters"] == "8.0B"
+        assert meta["context_length"] == 131072
+        assert "completion" in meta["capabilities"]
+        assert "vision" in meta["capabilities"]
+
+    @patch("chowkidar.slm.selector.get_model_size_from_manifest")
+    @patch("chowkidar.slm.selector.get_model_metadata")
+    def test_is_arbitrary_model_eligible(self, mock_meta, mock_size):
+        from chowkidar.slm.selector import is_arbitrary_model_eligible
+        
+        # Scenario 1: fully eligible model
+        mock_size.return_value = 4.5
+        mock_meta.return_value = {
+            "architecture": "llama",
+            "context_length": 8192,
+            "capabilities": ["completion"]
+        }
+        eligible, reason = is_arbitrary_model_eligible("llama3:8b", 16.0, 50.0)
+        assert eligible is True
+        
+        # Scenario 2: too large size for RAM
+        eligible, reason = is_arbitrary_model_eligible("llama3:8b", 4.0, 50.0)
+        assert eligible is False
+        assert "exceeds safe hardware limit" in reason
+        
+        # Scenario 3: embeddings-only model
+        mock_size.return_value = 1.0
+        mock_meta.return_value = {
+            "architecture": "nomic-bert",
+            "capabilities": []
+        }
+        eligible, reason = is_arbitrary_model_eligible("nomic-embed-text", 16.0, 50.0)
+        assert eligible is False
+        assert "embeddings" in reason
