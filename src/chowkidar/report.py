@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import html
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,7 @@ def generate_report(
     project_paths: list[Path],
     output_format: str = "markdown",
     registry: Registry | None = None,
+    redact_paths: bool = False,
 ) -> str:
     """Generate a deprecation report across one or more projects."""
     if registry is None:
@@ -34,10 +36,18 @@ def generate_report(
         for m in scan_result.all_models:
             canonical = m["canonical"]
             record = registry.get_model(canonical)
+            
+            file_display = m["file"]
+            if redact_paths and m["file"]:
+                try:
+                    file_display = str(Path(m["file"]).relative_to(project_path))
+                except ValueError:
+                    file_display = Path(m["file"]).name
+
             entry: dict = {
                 "variable": m["variable"],
                 "model": m["model"],
-                "file": m["file"],
+                "file": file_display,
                 "canonical": canonical,
                 "status": "active",
                 "sunset_date": None,
@@ -52,7 +62,7 @@ def generate_report(
             if record and record.sunset_date:
                 entry["sunset_date"] = record.sunset_date
                 entry["replacement"] = record.replacement
-                recommendation = build_recommendation(canonical, record)
+                recommendation = build_recommendation(canonical, record, registry=registry)
                 entry["recommendation"] = recommendation.to_dict()
                 entry["manual_review_required"] = recommendation.manual_review_required
                 risks = recommendation.commercial_risks + recommendation.future_risks + recommendation.privacy_risks
@@ -81,34 +91,48 @@ def generate_report(
             models_data.append(entry)
 
         projects_data.append({
-            "path": str(project_path),
+            "path": f"[REDACTED]/{project_path.name}" if redact_paths else str(project_path),
             "name": project_path.name,
             "total_models": scan_result.total_count,
             "deployment": deployment.to_dict(),
             "models": models_data,
         })
 
+    sync_statuses = registry.get_sync_statuses() if registry else {}
+
     if output_format == "json":
-        return _render_json(projects_data, now)
+        return _render_json(projects_data, now, sync_statuses)
     elif output_format == "html":
-        return _render_html(projects_data, now)
+        return _render_html(projects_data, now, sync_statuses)
     else:
-        return _render_markdown(projects_data, now)
+        return _render_markdown(projects_data, now, sync_statuses)
 
 
-def _render_json(projects_data: list[dict], now: datetime) -> str:
+def _render_json(projects_data: list[dict], now: datetime, sync_statuses: dict[str, dict] = None) -> str:
     return json.dumps({
         "generated_at": now.isoformat(),
+        "sync_statuses": sync_statuses or {},
         "projects": projects_data,
     }, indent=2)
 
 
-def _render_markdown(projects_data: list[dict], now: datetime) -> str:
+def _render_markdown(projects_data: list[dict], now: datetime, sync_statuses: dict[str, dict] = None) -> str:
     lines: list[str] = [
         "# Chowkidar Deprecation Report",
         f"*Generated: {now.strftime('%Y-%m-%d %H:%M UTC')}*",
         "",
     ]
+
+    if sync_statuses:
+        lines.append("### Provider Sync Status")
+        lines.append("| Provider | Last Success | Last Failure | Failure Reason |")
+        lines.append("|----------|--------------|--------------|----------------|")
+        for prov, stat in sync_statuses.items():
+            success = stat.get("last_success_at") or "never"
+            failure = stat.get("last_failure_at") or "never"
+            reason = stat.get("failure_reason") or "-"
+            lines.append(f"| {prov} | {success} | {failure} | {reason} |")
+        lines.append("")
 
     for proj in projects_data:
         lines.append(f"## {proj['name']}")
@@ -131,6 +155,14 @@ def _render_markdown(projects_data: list[dict], now: datetime) -> str:
         for m in deprecated:
             days = str(m["days_until"]) if m["days_until"] is not None else "?"
             repl = m["replacement"] or "-"
+
+            # Format Elo benchmarks if available
+            rec = m.get("recommendation")
+            if rec and rec.get("benchmark_comparison"):
+                from .benchmarks import format_benchmark_delta_markdown
+                suffix = format_benchmark_delta_markdown(rec["benchmark_comparison"])
+                repl = f"{repl}{suffix}"
+
             cost = m.get("cost_summary", "") or "-"
             review = "required" if m.get("manual_review_required") else "not required"
             lines.append(f"| {m['variable']} | {m['model']} | {m['status']} "
@@ -140,11 +172,7 @@ def _render_markdown(projects_data: list[dict], now: datetime) -> str:
     return "\n".join(lines)
 
 
-def _escape_js_string(s: str) -> str:
-    return s.replace("\\", "\\\\").replace("'", "\\'")
-
-
-def _render_html(projects_data: list[dict], now: datetime) -> str:
+def _render_html(projects_data: list[dict], now: datetime, sync_statuses: dict[str, dict] = None) -> str:
     status_colors = {
         "sunset": "#dc3545",
         "critical": "#fd7e14",
@@ -155,6 +183,16 @@ def _render_html(projects_data: list[dict], now: datetime) -> str:
 
     rows_html: list[str] = []
     projects_html: list[str] = []
+    
+    prov_rows = ""
+    if sync_statuses:
+        for prov, stat in sync_statuses.items():
+            success = stat.get("last_success_at") or "never"
+            failure = stat.get("last_failure_at") or "never"
+            reason = stat.get("failure_reason") or "-"
+            prov_rows += f"<tr><td>{html.escape(prov)}</td><td>{html.escape(success)}</td><td>{html.escape(failure)}</td><td>{html.escape(reason)}</td></tr>"
+    else:
+        prov_rows = '<tr><td colspan="4" style="text-align:center;">No sync status recorded.</td></tr>'
     
     for proj in projects_data:
         dep = proj.get("deployment", {})
@@ -173,7 +211,7 @@ def _render_html(projects_data: list[dict], now: datetime) -> str:
         signals_li = ""
         if signals:
             signals_li = '<ul style="margin: 0.5rem 0; padding-left: 1.2rem;">' + "".join(
-                f"<li><code>{s.get('adapter').upper()}</code>: {s.get('evidence')} (strength {s.get('strength')}) in <code>{Path(s.get('file_path')).name}</code></li>"
+                f"<li><code>{html.escape(s.get('adapter', '').upper())}</code>: {html.escape(str(s.get('evidence', '')))} (strength {html.escape(str(s.get('strength', '')))}) in <code>{html.escape(Path(s.get('file_path', '')).name)}</code></li>"
                 for s in signals
             ) + "</ul>"
         else:
@@ -181,10 +219,10 @@ def _render_html(projects_data: list[dict], now: datetime) -> str:
             
         projects_html.append(
             f'<div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; margin: 1rem 0; background-color: var(--header-bg);">'
-            f'  <h3 style="margin: 0 0 0.5rem 0; font-size: 1.15em;">Project: <span style="color: var(--highlight-var-color);">{proj["name"]}</span></h3>'
-            f'  <p style="margin: 0.25rem 0; font-size: 0.9em;">Local Path: <code>{proj["path"]}</code></p>'
+            f'  <h3 style="margin: 0 0 0.5rem 0; font-size: 1.15em;">Project: <span style="color: var(--highlight-var-color);">{html.escape(proj["name"])}</span></h3>'
+            f'  <p style="margin: 0.25rem 0; font-size: 0.9em;">Local Path: <code>{html.escape(proj["path"])}</code></p>'
             f'  <p style="margin: 0.25rem 0; font-size: 0.9em;">'
-            f'    Deployment Signals: <span class="badge" style="background-color: {dep_color}; color: #ffffff; font-weight: bold;">{state}</span> '
+            f'    Deployment Signals: <span class="badge" style="background-color: {dep_color}; color: #ffffff; font-weight: bold;">{html.escape(state)}</span> '
             f'    (confidence score: <b>{conf}</b>)'
             f'  </p>'
             f'  <div style="font-size: 0.85em; color: #6c757d; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.5rem;">'
@@ -199,31 +237,36 @@ def _render_html(projects_data: list[dict], now: datetime) -> str:
             color = status_colors.get(m["status"], "#6c757d")
             days = str(m["days_until"]) if m["days_until"] is not None else "?"
             repl = m["replacement"] or "-"
+            rec = m.get("recommendation")
+            if rec and rec.get("benchmark_comparison"):
+                from .benchmarks import format_benchmark_delta_html
+                repl = format_benchmark_delta_html(rec["benchmark_comparison"], repl)
+            else:
+                repl = f"<b>{html.escape(repl)}</b>"
+
             cost = m.get("cost_summary", "") or "-"
             review = "Yes" if m.get("manual_review_required") else "No"
             risk = m.get("risk_summary") or "-"
-            file_escaped = _escape_js_string(m["file"])
-
-            # Action button is shown only if we have a file path
+            
             action_btn = (
-                f'<button class="btn-action" onclick="openInEditor(\'{file_escaped}\')">'
+                f'<button class="btn-action btn-open-editor" data-file-path="{html.escape(m["file"])}">'
                 f'✏️ Open in Editor</button>'
                 if m["file"] else "-"
             )
 
             rows_html.append(
                 f"<tr>"
-                f"<td>{proj['name']}</td>"
-                f"<td><code class='highlight-var'>{m['variable']}</code></td>"
-                f"<td><code class='highlight-model'>{m['model']}</code></td>"
+                f"<td>{html.escape(proj['name'])}</td>"
+                f"<td><code class='highlight-var'>{html.escape(m['variable'])}</code></td>"
+                f"<td><code class='highlight-model'>{html.escape(m['model'])}</code></td>"
                 f'<td><span class="badge" style="background-color:{color};'
-                f'color:#ffffff;font-weight:bold">{m["status"]}</span></td>'
-                f"<td>{m['sunset_date'] or '-'}</td>"
-                f"<td>{days}</td>"
+                f'color:#ffffff;font-weight:bold">{html.escape(m["status"])}</span></td>'
+                f"<td>{html.escape(m['sunset_date'] or '-')}</td>"
+                f"<td>{html.escape(days)}</td>"
                 f"<td>{repl}</td>"
-                f"<td>{cost}</td>"
-                f"<td>{review}</td>"
-                f"<td>{risk}</td>"
+                f"<td>{html.escape(cost)}</td>"
+                f"<td>{html.escape(review)}</td>"
+                f"<td>{html.escape(risk)}</td>"
                 f"<td>{action_btn}</td>"
                 f"</tr>"
             )
@@ -363,6 +406,21 @@ def _render_html(projects_data: list[dict], now: datetime) -> str:
 <h1>Chowkidar Deprecation Report</h1>
 <p class="meta">Generated: {now.strftime('%Y-%m-%d %H:%M UTC')}</p>
 
+<h2>Provider Sync Status</h2>
+<table>
+<thead>
+<tr>
+  <th>Provider</th>
+  <th>Last Success</th>
+  <th>Last Failure</th>
+  <th>Failure Reason</th>
+</tr>
+</thead>
+<tbody>
+{prov_rows}
+</tbody>
+</table>
+
 <h2>Workspace / Project Summary</h2>
 {"".join(projects_html)}
 
@@ -417,6 +475,17 @@ function showToast(message, isSuccess) {{
     toast.style.opacity = "0";
   }}, 3000);
 }}
+
+document.addEventListener("DOMContentLoaded", () => {{
+  document.querySelectorAll(".btn-open-editor").forEach(btn => {{
+    btn.addEventListener("click", () => {{
+      const filePath = btn.getAttribute("data-file-path");
+      if (filePath) {{
+        openInEditor(filePath);
+      }}
+    }});
+  }});
+}});
 </script>
 </body>
 </html>"""

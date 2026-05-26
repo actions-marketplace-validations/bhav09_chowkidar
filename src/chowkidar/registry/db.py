@@ -68,6 +68,10 @@ class Registry:
         self.conn.executescript(schema)
         self.conn.commit()
 
+        # Seed benchmarks offline-first
+        from ..benchmarks import seed_benchmarks
+        seed_benchmarks(self)
+
     def _migrate_existing_schema(self) -> None:
         """Add newer audit columns to existing local databases."""
         notification_columns = {
@@ -134,8 +138,9 @@ class Registry:
     def get_model(self, model_id: str) -> ModelRecord | None:
         row = self.conn.execute("SELECT * FROM models WHERE id = ?", (model_id,)).fetchone()
         if row is None:
+            escaped_id = model_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             alias_row = self.conn.execute(
-                "SELECT * FROM models WHERE aliases LIKE ?", (f'%"{model_id}"%',)
+                "SELECT * FROM models WHERE aliases LIKE ? ESCAPE '\\'", (f'%"{escaped_id}"%',)
             ).fetchone()
             if alias_row is None:
                 return None
@@ -411,3 +416,58 @@ class Registry:
             "SELECT MAX(last_checked_at) as t FROM models"
         ).fetchone()
         return row["t"] if row else None
+
+    # --- Provider Sync Status ---
+
+    def log_sync_success(self, provider: str) -> None:
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+        self.conn.execute(
+            """INSERT INTO provider_sync_status (provider, last_success_at, last_checked_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(provider) DO UPDATE SET
+                 last_success_at = excluded.last_success_at,
+                 last_checked_at = excluded.last_checked_at,
+                 failure_reason = NULL""",
+            (provider, now, now),
+        )
+        self.conn.commit()
+
+    def log_sync_failure(self, provider: str, reason: str) -> None:
+        import re
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+        
+        # Redact common credential patterns (bearer tokens, API keys, passwords, credentials)
+        clean_reason = str(reason)
+        clean_reason = re.sub(r"(?:bearer\s+|key\s+|api_key\s*=\s*|token\s*=\s*|password\s*=\s*|credential\s*=\s*)(['\"]?)[a-zA-Z0-9_\-\.]{15,}\1", "[REDACTED]", clean_reason, flags=re.IGNORECASE)
+        # Redact sk- OpenAI style keys if present
+        clean_reason = re.sub(r"(?:sk-[a-zA-Z0-9]{20,})", "[REDACTED]", clean_reason)
+        # Strip simple HTML/XML tags
+        clean_reason = re.sub(r"<[^>]+>", "", clean_reason)
+        # Clean control characters and trim/truncate
+        clean_reason = "".join(ch for ch in clean_reason if ord(ch) >= 32 or ch in "\n\r\t")
+        if len(clean_reason) > 250:
+            clean_reason = clean_reason[:247] + "..."
+
+        self.conn.execute(
+            """INSERT INTO provider_sync_status (provider, last_failure_at, failure_reason, last_checked_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(provider) DO UPDATE SET
+                 last_failure_at = excluded.last_failure_at,
+                 failure_reason = excluded.failure_reason,
+                 last_checked_at = excluded.last_checked_at""",
+            (provider, now, clean_reason, now),
+        )
+        self.conn.commit()
+
+    def get_sync_statuses(self) -> dict[str, dict]:
+        rows = self.conn.execute("SELECT * FROM provider_sync_status").fetchall()
+        result = {}
+        for r in rows:
+            result[r["provider"]] = {
+                "last_success_at": r["last_success_at"],
+                "last_failure_at": r["last_failure_at"],
+                "failure_reason": r["failure_reason"],
+                "last_checked_at": r["last_checked_at"],
+            }
+        return result
+

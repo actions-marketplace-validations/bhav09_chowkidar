@@ -172,7 +172,7 @@ def generate_local_advice(models: list[dict[str, str]], registry: Registry) -> l
 
         record = registry.get_model(canonical)
         fallback = None if record and record.sunset_date and record.replacement else get_fallback_recommendation(canonical)
-        recommendation = build_recommendation(canonical, record, fallback)
+        recommendation = build_recommendation(canonical, record, fallback, registry=registry)
         rec_model = recommendation.recommended_model
         confidence = recommendation.confidence
         reason = recommendation.reason

@@ -148,3 +148,24 @@ class TestScanResults:
         results = registry.get_scan_results("/proj")
         assert len(results) == 1
         assert results[0].model_value == "gpt-3.5-turbo"
+
+class TestProviderSyncStatus:
+    def test_log_success_and_failure(self, registry):
+        assert registry.get_sync_statuses() == {}
+
+        registry.log_sync_success("openai")
+        statuses = registry.get_sync_statuses()
+        assert "openai" in statuses
+        assert statuses["openai"]["last_success_at"] is not None
+        assert statuses["openai"]["failure_reason"] is None
+
+        registry.log_sync_failure("openai", "HTTP 500 Server Error")
+        statuses = registry.get_sync_statuses()
+        assert "openai" in statuses
+        assert statuses["openai"]["last_success_at"] is not None
+        assert statuses["openai"]["last_failure_at"] is not None
+        assert statuses["openai"]["failure_reason"] == "HTTP 500 Server Error"
+
+        registry.log_sync_success("openai")
+        statuses = registry.get_sync_statuses()
+        assert statuses["openai"]["failure_reason"] is None

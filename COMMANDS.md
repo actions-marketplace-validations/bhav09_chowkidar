@@ -24,6 +24,10 @@ Cross-references found model references against the local deprecation database a
 - **Options**:
   - `-q, --quiet`: Quiet mode for shell hook checks (returns a single-line summary).
 
+### `chowkidar config [KEY] [VALUE]`
+Views or modifies Chowkidar's configuration settings. If run without arguments, prints all active configuration keys and values.
+- **Usage**: `chowkidar config [KEY] [VALUE]` (e.g., `chowkidar config auto_update true`)
+
 ---
 
 ## Daemon & Background Scanning
@@ -77,7 +81,7 @@ Temporarily mutes deprecation alerts for a model ID for a specified number of da
 ## Interactive Updates & Safe Fixes
 
 ### `chowkidar update [PATH]`
-Interactively reviews and safely applies recommended model replacements to structured configuration files (`.env`, JSON, YAML, TOML, `docker-compose`).
+Previews or applies safe updates of deprecated model strings in structured configuration files (`.env`, JSON, YAML, TOML, `docker-compose`).
 - **Usage**: `chowkidar update [PATH] [--dry-run]`
 - **Options**:
   - `--dry-run`: Preview updates without modifying files.
@@ -145,6 +149,10 @@ Installs a lightweight shell hook that displays quick model deprecation warning 
 ### `chowkidar hook uninstall`
 Uninstalls the shell warnings hook.
 - **Usage**: `chowkidar hook uninstall`
+
+### `chowkidar mcp`
+Launches the stdio-based MCP (Model Context Protocol) server for active IDE-level AI assistant queries and tool calls.
+- **Usage**: `chowkidar mcp`
 
 ---
 

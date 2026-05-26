@@ -154,9 +154,23 @@ def sync() -> None:
                             privacy_tier=dep.privacy_tier,
                         )
                     total += len(deprecations)
+                    registry.log_sync_success(provider.name)
                     console.print(f"  [green]✓[/green] {provider.name}: {len(deprecations)} models")
             except Exception as e:
+                registry.log_sync_failure(provider.name, str(e))
                 console.print(f"  [red]✗[/red] {provider.name}: {e}")
+
+        # Sync Chatbot Arena benchmarks
+        try:
+            with console.status("Syncing Chatbot Arena benchmarks..."):
+                from .benchmarks import sync_arena_benchmarks
+                num_benchmarks = await sync_arena_benchmarks(registry, config=config)
+                if num_benchmarks > 0:
+                    console.print(f"  [green]✓[/green] Chatbot Arena: {num_benchmarks} benchmarks")
+                else:
+                    console.print("  [yellow]⚠[/yellow] Chatbot Arena: No updates found or offline")
+        except Exception as e:
+            console.print(f"  [red]✗[/red] Chatbot Arena: {e}")
 
         console.print(f"\n[bold green]Synced {total} deprecation records.[/bold green]")
 
@@ -265,6 +279,12 @@ def check(
             days_str = str(days_until) if days_until else "?"
 
         replacement = record.replacement or "-"
+        if record.replacement:
+            from .recommendations import build_recommendation
+            from .benchmarks import format_benchmark_delta_cli
+            recommendation = build_recommendation(canonical, record, registry=registry)
+            suffix = format_benchmark_delta_cli(recommendation.benchmark_comparison)
+            replacement = f"{record.replacement}{suffix}"
 
         table.add_row(
             m["variable"], m["model"], status, snapshot_str, privacy_str, record.sunset_date,
@@ -309,6 +329,21 @@ def status() -> None:
             console.print(f"  Registry: last sync {last_sync}")
     else:
         console.print("  Registry: [red]never synced[/red] — run 'chowkidar sync'")
+
+    sync_statuses = registry.get_sync_statuses()
+    if sync_statuses:
+        status_table = Table(title="Provider Sync Status", show_header=True)
+        status_table.add_column("Provider", style="cyan")
+        status_table.add_column("Last Success", style="green")
+        status_table.add_column("Last Failure", style="red")
+        status_table.add_column("Failure Reason", style="dim")
+        for prov, stat in sync_statuses.items():
+            success_str = stat.get("last_success_at") or "never"
+            failure_str = stat.get("last_failure_at") or "never"
+            reason_str = stat.get("failure_reason") or "-"
+            status_table.add_row(prov, success_str, failure_str, reason_str)
+        console.print(status_table)
+        console.print()
 
     # Background service process health diagnostics
     def is_pid_running(pid: int) -> bool:
@@ -573,7 +608,9 @@ def setup(
                             breaking_changes=dep.breaking_changes,
                             source_url=dep.source_url,
                         )
+                    registry.log_sync_success(provider.name)
                 except Exception as e:
+                    registry.log_sync_failure(provider.name, str(e))
                     import logging
                     logging.getLogger("chowkidar.cli").debug("Failed to sync %s during setup: %s", provider.name, e)
         import asyncio
@@ -763,9 +800,10 @@ def update(
         record = registry.get_model(canonical)
         if record and record.sunset_date and record.replacement:
             if not registry.is_pinned(canonical):
-                recommendation = build_recommendation(canonical, record)
+                recommendation = build_recommendation(canonical, record, registry=registry)
                 if not recommendation.recommended_model:
                     continue
+                comp = recommendation.benchmark_comparison
                 updates.append({
                     "file": m["file"],
                     "variable": m["variable"],
@@ -777,6 +815,7 @@ def update(
                     "breaking": record.breaking_changes,
                     "target_type": target_type,
                     "manual_review_required": recommendation.manual_review_required,
+                    "benchmark_comparison": comp,
                 })
 
     if not updates:
@@ -793,8 +832,12 @@ def update(
     table.add_column("Review?")
 
     for u in updates:
+        from .benchmarks import format_benchmark_delta_cli
+        suffix = format_benchmark_delta_cli(u.get("benchmark_comparison"))
+        new_model_display = f"{u['new_model']}{suffix}"
+
         table.add_row(
-            u["variable"], u["old_model"], "→", u["new_model"],
+            u["variable"], u["old_model"], "→", new_model_display,
             u["confidence"], "Yes" if u["breaking"] else "No",
             "Yes" if u["manual_review_required"] else "No",
         )
@@ -1271,6 +1314,7 @@ def report(
     output_format: str = typer.Option("markdown", "--format", "-f", help="markdown|json|html"),
     multi_project: bool = typer.Option(False, "--multi-project", help="Report all watched projects"),
     output_file: Optional[str] = typer.Option(None, "--output", "-o", help="Write to file"),
+    redact_paths: bool = typer.Option(False, "--redact-paths", help="Redact local absolute directory paths in output"),
 ) -> None:
     """Generate a deprecation report."""
     from .registry.db import Registry
@@ -1287,7 +1331,7 @@ def report(
     else:
         project_paths = [Path(path).resolve() if path else Path.cwd()]
 
-    report_text = generate_report(project_paths, output_format, registry)
+    report_text = generate_report(project_paths, output_format, registry, redact_paths=redact_paths)
 
     if output_file:
         Path(output_file).write_text(report_text, encoding="utf-8")

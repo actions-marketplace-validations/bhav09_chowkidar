@@ -170,7 +170,7 @@ def list_model_recommendations(project_path: str | None = None) -> str:
         record = registry.get_model(canonical)
         if not record or not record.sunset_date:
             continue
-        rec = build_recommendation(canonical, record).to_dict()
+        rec = build_recommendation(canonical, record, registry=registry).to_dict()
         rec.update({
             "variable": model_info["variable"],
             "file": model_info["file"],

@@ -19,8 +19,8 @@ Everything runs on your machine. Zero data exfiltration.
 - **Deployment Signal Detector**
   Analyzes repo evidence (CI, Docker, Kubernetes, Vercel, Terraform) to flag likely deployed environments, preventing blind or risky local writes.
 
-- **Cloud Environment Adapters**
-  Explicit, credential-backed adapters for dry-running, updating, and verifying remote secret/config stores on Vercel, Kubernetes, AWS Secrets/SSM, GCP Secret Manager, and Azure Key Vault.
+- **Cloud Environment Adapters (Planned)**
+  Explicit, contract-ready adapter interface designed for dry-running, updating, and verifying remote secret/config stores on Vercel, Kubernetes, AWS Secrets/SSM, GCP Secret Manager, and Azure Key Vault (currently running in disabled stub mode pending credential integration).
 
 - **Unified Risk & Capability Analysis**
   Guarantees migrations won't degrade your system by verifying context windows, output tokens, vision, tool usage, JSON mode, streaming, and cost impacts.
@@ -42,7 +42,7 @@ chowkidar setup
 
 The `chowkidar setup` command provides a zero-friction setup that configures everything for your project:
 1. **Config & Database**: Creates your config and database files under `.chowkidar/` inside your project root.
-2. **Initial Scan & Sync**: Syncs provider deprecation tables and performs an immediate first-time scan on the repository to make alerts and rules files active right away.
+2. **Initial Scan & Sync**: Syncs provider deprecation tables and performs an immediate first-time scan on the repository to initialize alerts. (Note: IDE rule files are generated and updated automatically by the background daemon during monitoring cycles, or manually via `chowkidar rules write`).
 
 You can customize behavior inside `.chowkidar/config.toml` or via the CLI:
 ```bash
@@ -76,7 +76,7 @@ Registers a project path with the background daemon for periodic scans.
 Starts the background monitoring loop (sends alerts at 30, 15, 7, and 1 day before expiry).
 
 ### 8. `chowkidar update`
-Interactively reviews and updates deprecated model strings in configuration files.
+Previews (via `--dry-run`) or applies safe updates of deprecated model strings in structured configuration files (such as `.env`, JSON, YAML, TOML, and `docker-compose.yml`).
 
 ### 9. `chowkidar mcp`
 Launches the stdio MCP server for active IDE-level AI assistant queries.

@@ -57,6 +57,14 @@ DEFAULTS: dict[str, Any] = {
     "discover_roots": ["~/Projects", "~/Code", "~/Developer"],
     "discover_interval_hours": 24,
     "discover_max_depth": 4,
+    "benchmarks_enabled": True,
+    "benchmarks_arena_url": "https://raw.githubusercontent.com/oolong-tea-2026/arena-ai-leaderboards/main/data/latest.json",
+    "benchmarks_sync_timeout_seconds": 10.0,
+    "benchmarks_retry_attempts": 3,
+    "benchmarks_retry_backoff_min": 2.0,
+    "benchmarks_retry_backoff_max": 30.0,
+    "benchmarks_max_payload_mb": 5,
+    "benchmarks_stale_threshold_hours": 72,
 }
 
 

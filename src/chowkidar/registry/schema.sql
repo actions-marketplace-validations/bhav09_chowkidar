@@ -106,3 +106,21 @@ CREATE TABLE IF NOT EXISTS migration_notes (
 CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
 CREATE INDEX IF NOT EXISTS idx_models_sunset ON models(sunset_date);
 CREATE INDEX IF NOT EXISTS idx_migration_notes_model ON migration_notes(model_id);
+
+CREATE TABLE IF NOT EXISTS provider_sync_status (
+    provider TEXT PRIMARY KEY,
+    last_success_at TEXT,
+    last_failure_at TEXT,
+    failure_reason TEXT,
+    last_checked_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS model_benchmarks (
+    model_id TEXT PRIMARY KEY,
+    arena_elo INTEGER,
+    mmlu REAL,
+    human_eval REAL,
+    last_updated TEXT DEFAULT (datetime('now'))
+);
+
+

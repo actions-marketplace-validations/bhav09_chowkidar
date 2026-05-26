@@ -7,7 +7,7 @@ from typing import Any
 
 from .capabilities import CapabilityDiff, diff_capabilities
 from .pricing import compare_cost
-from .registry.db import ModelRecord
+from .registry.db import ModelRecord, Registry
 from .scanner.patterns import normalize_model_id
 
 
@@ -29,6 +29,7 @@ class Recommendation:
     privacy_risks: list[str] = field(default_factory=list)
     manual_review_required: bool = False
     auto_write_allowed: bool = False
+    benchmark_comparison: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -38,6 +39,7 @@ def build_recommendation(
     current_model: str,
     record: ModelRecord | None,
     fallback: tuple[str, str, str] | None = None,
+    registry: Registry | None = None,
 ) -> Recommendation:
     """Build a validated recommendation from registry data plus optional fallback advice."""
     current_canonical = normalize_model_id(current_model)
@@ -77,6 +79,14 @@ def build_recommendation(
     if not recommended:
         recommendation.manual_review_required = True
         return recommendation
+
+    # Load benchmark comparison if registry is provided
+    if registry:
+        from .benchmarks import BenchmarkService
+        service = BenchmarkService(registry)
+        comp = service.get_comparison(current_canonical, recommended)
+        if comp:
+            recommendation.benchmark_comparison = comp.to_dict()
 
     cost = compare_cost(current_canonical, recommended)
     if cost:

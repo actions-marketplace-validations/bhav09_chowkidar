@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "source": "Chatbot Arena, MMLU, HumanEval baseline publications",
+    "last_updated": "2026-05-25",
+    "metrics": {
+      "arena_elo": {
+        "name": "Chatbot Arena Elo",
+        "unit": "Elo score"
+      },
+      "mmlu": {
+        "name": "MMLU",
+        "unit": "percent accuracy"
+      },
+      "human_eval": {
+        "name": "HumanEval",
+        "unit": "percent pass@1"
+      }
+    }
+  },
+  "benchmarks": {
+    "openai/gpt-3.5-turbo": {"arena_elo": 1106, "mmlu": 70.0, "human_eval": 48.1},
+    "openai/gpt-3.5-turbo-0125": {"arena_elo": 1106, "mmlu": 70.0, "human_eval": 48.1},
+    "openai/gpt-4": {"arena_elo": 1158, "mmlu": 86.4, "human_eval": 67.0},
+    "openai/gpt-4-turbo": {"arena_elo": 1251, "mmlu": 86.7, "human_eval": 81.0},
+    "openai/gpt-4-turbo-preview": {"arena_elo": 1251, "mmlu": 86.7, "human_eval": 81.0},
+    "openai/gpt-4o": {"arena_elo": 1286, "mmlu": 88.7, "human_eval": 90.2},
+    "openai/gpt-4o-mini": {"arena_elo": 1215, "mmlu": 82.0, "human_eval": 87.2},
+    "openai/gpt-4.1": {"arena_elo": 1310, "mmlu": 91.2, "human_eval": 92.5},
+    "openai/gpt-4.1-mini": {"arena_elo": 1260, "mmlu": 85.5, "human_eval": 89.0},
+    "openai/gpt-4.1-nano": {"arena_elo": 1180, "mmlu": 78.0, "human_eval": 82.0},
+    "openai/o1": {"arena_elo": 1335, "mmlu": 91.8, "human_eval": 94.0},
+    "openai/o1-mini": {"arena_elo": 1272, "mmlu": 85.0, "human_eval": 91.0},
+    "openai/o1-preview": {"arena_elo": 1335, "mmlu": 91.8, "human_eval": 94.0},
+    "openai/o3-mini": {"arena_elo": 1320, "mmlu": 90.5, "human_eval": 93.0},
+    "openai/o4-mini": {"arena_elo": 1320, "mmlu": 90.5, "human_eval": 93.0},
+    "anthropic/claude-2.1": {"arena_elo": 1118, "mmlu": 77.0, "human_eval": 61.0},
+    "anthropic/claude-3-opus-20240229": {"arena_elo": 1245, "mmlu": 86.8, "human_eval": 84.0},
+    "anthropic/claude-3-sonnet-20240229": {"arena_elo": 1198, "mmlu": 79.0, "human_eval": 73.0},
+    "anthropic/claude-3-haiku-20240307": {"arena_elo": 1175, "mmlu": 75.2, "human_eval": 70.0},
+    "anthropic/claude-3.5-sonnet-20241022": {"arena_elo": 1280, "mmlu": 88.7, "human_eval": 92.0},
+    "anthropic/claude-3.5-haiku-20241022": {"arena_elo": 1220, "mmlu": 80.0, "human_eval": 82.0},
+    "anthropic/claude-sonnet-4-20250514": {"arena_elo": 1315, "mmlu": 90.2, "human_eval": 93.5},
+    "anthropic/claude-opus-4-20250514": {"arena_elo": 1325, "mmlu": 91.5, "human_eval": 95.0},
+    "google/gemini-1.0-pro": {"arena_elo": 1125, "mmlu": 71.8, "human_eval": 67.7},
+    "google/gemini-1.5-pro": {"arena_elo": 1260, "mmlu": 85.9, "human_eval": 84.1},
+    "google/gemini-1.5-flash": {"arena_elo": 1210, "mmlu": 78.9, "human_eval": 74.3},
+    "google/gemini-2.0-flash": {"arena_elo": 1248, "mmlu": 82.0, "human_eval": 80.5},
+    "google/gemini-2.5-pro-preview": {"arena_elo": 1275, "mmlu": 86.0, "human_eval": 85.0},
+    "google/gemini-2.5-flash-preview": {"arena_elo": 1230, "mmlu": 80.0, "human_eval": 78.0},
+    "mistral/mistral-small-latest": {"arena_elo": 1140, "mmlu": 72.0, "human_eval": 55.0},
+    "mistral/mistral-large-latest": {"arena_elo": 1225, "mmlu": 84.0, "human_eval": 73.0}
+  }
+}

@@ -200,9 +200,19 @@ class ChowkidarDaemon:
                         breaking_changes=dep.breaking_changes,
                         source_url=dep.source_url,
                     )
+                self.registry.log_sync_success(provider.name)
                 logger.info("Synced %d deprecations from %s", len(deprecations), provider.name)
             except Exception as e:
+                self.registry.log_sync_failure(provider.name, str(e))
                 logger.error("Failed to sync %s: %s", provider.name, e)
+
+        # Sync Chatbot Arena benchmarks
+        try:
+            from ..benchmarks import sync_arena_benchmarks
+            num_benchmarks = await sync_arena_benchmarks(self.registry, config=self.config)
+            logger.info("Synced %d Chatbot Arena benchmarks.", num_benchmarks)
+        except Exception as e:
+            logger.error("Failed to sync Chatbot Arena benchmarks: %s", e)
 
     def _run_scan_check(self) -> None:
         """Scan all watched projects, check for deprecations, notify."""

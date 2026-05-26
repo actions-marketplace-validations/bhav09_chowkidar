@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
 import platform
 import shutil
 import subprocess
@@ -21,9 +22,10 @@ def open_in_editor(file_path_str: str) -> bool:
     - Fallback to native OS folder opening (open/xdg-open/explorer)
     """
     path = Path(file_path_str).resolve()
-    # Check if the path exists, if not use parent directory or cwd as fallback
+    # Check if the path exists, if not reject to prevent opening arbitrary directories
     if not path.exists():
-        path = Path.cwd()
+        logger.warning("Rejecting attempt to open non-existent path: %s", file_path_str)
+        return False
 
     target_path = str(path)
     parent_dir = str(path.parent) if path.is_file() else str(path)
@@ -31,11 +33,12 @@ def open_in_editor(file_path_str: str) -> bool:
     # 1. Check environment variables
     editor = os.environ.get("CHOWKIDAR_EDITOR") or os.environ.get("VISUAL") or os.environ.get("EDITOR")
     if editor:
-        # Handle cases where editor contains spaces or arguments (e.g., 'code --wait')
-        parts = editor.split()
+        # Handle cases where editor contains spaces or arguments (e.g., 'code --wait') safely with shlex
+        parts = shlex.split(editor)
         cmd = parts + [target_path]
         try:
             logger.info("Opening editor with env var command: %s", cmd)
+            # Run without shell=True to prevent arbitrary command execution/breakouts
             subprocess.run(cmd, check=True, timeout=10)
             return True
         except Exception as e:

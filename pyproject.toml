@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chowkidar"
-version = "0.7.3"
+version = "0.7.5"
 description = "Local-first LLM model deprecation watchdog — scans your configs, alerts on sunsets, and instructs your IDE to update."
 readme = "README.md"
 license = { text = "MIT" }
@@ -34,6 +34,11 @@ dependencies = [
     "schedule>=1.2.0",
     "mcp>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/bhav09/chowkidar"
+Repository = "https://github.com/bhav09/chowkidar"
+Issues = "https://github.com/bhav09/chowkidar/issues"
 
 [project.optional-dependencies]
 slm = ["ollama>=0.4.0"]
