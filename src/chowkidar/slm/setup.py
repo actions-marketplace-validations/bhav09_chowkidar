@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import platform
 import shutil
 import subprocess
@@ -59,7 +60,7 @@ def install_ollama(auto_confirm: bool = False) -> bool:
 
 
 def ensure_ollama_running() -> bool:
-    """Make sure the Ollama server is running."""
+    """Make sure the Ollama server is running with up to 5s polling retry."""
     try:
         result = subprocess.run(
             ["ollama", "list"],
@@ -94,25 +95,69 @@ def ensure_ollama_running() -> bool:
             return False
 
         import time
-        time.sleep(3)
+        for i in range(10):  # 10 attempts * 0.5s = 5s total
+            time.sleep(0.5)
+            try:
+                result = subprocess.run(
+                    ["ollama", "list"], capture_output=True, text=True, timeout=3,
+                )
+                if result.returncode == 0:
+                    return True
+            except Exception:
+                pass
 
-        result = subprocess.run(
-            ["ollama", "list"], capture_output=True, text=True, timeout=10,
-        )
-        return result.returncode == 0
+        return False
     except Exception as e:
         logger.warning("Failed to start Ollama: %s", e)
         return False
 
 
+def check_model_on_disk(model: str) -> bool:
+    """Check if model manifest exists on disk, indicating it is installed."""
+    import os
+    from pathlib import Path
+
+    try:
+        # Extract tag if present
+        if ":" in model:
+            model_part, tag = model.split(":", 1)
+        else:
+            model_part, tag = model, "latest"
+            
+        # Extract namespace if present (e.g., "username/model")
+        if "/" in model_part:
+            namespace, base = model_part.split("/", 1)
+        else:
+            namespace, base = "library", model_part
+            
+        # Get Ollama models base directory
+        env_models = os.environ.get("OLLAMA_MODELS")
+        if env_models:
+            base_dir = Path(env_models)
+        else:
+            base_dir = Path.home() / ".ollama" / "models"
+            
+        manifest_dir = base_dir / "manifests" / "registry.ollama.ai" / namespace / base
+        manifest_file = manifest_dir / tag
+        
+        return manifest_file.exists()
+    except Exception as e:
+        logger.debug("Failed to check model manifest on disk: %s", e)
+        return False
+
+
 def check_model_available(model: str) -> bool:
+    """Check if the model is available via Ollama API/CLI or on disk."""
     try:
         result = subprocess.run(
             ["ollama", "list"], capture_output=True, text=True, timeout=10,
         )
-        return model in result.stdout
+        if result.returncode == 0 and model in result.stdout:
+            return True
     except Exception:
-        return False
+        pass
+
+    return check_model_on_disk(model)
 
 
 def pull_model(model: str) -> bool:
@@ -167,6 +212,8 @@ def full_setup(skip_slm: bool = False) -> tuple[bool, str]:
     if not check_model_available(model):
         if not pull_model(model):
             return False, f"Failed to pull model '{model}'. Check your internet connection."
+    else:
+        logger.info("Model '%s' is already installed globally via Ollama. Skipping download.", model)
 
     config.set("slm_enabled", True)
     config.save()

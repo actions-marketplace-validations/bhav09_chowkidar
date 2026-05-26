@@ -119,6 +119,41 @@ def get_installed_ollama_models() -> list[str]:
         except Exception:
             pass
 
+    # Filesystem fallback
+    try:
+        import os
+        from pathlib import Path
+        env_models = os.environ.get("OLLAMA_MODELS")
+        if env_models:
+            base_dir = Path(env_models)
+        else:
+            base_dir = Path.home() / ".ollama" / "models"
+            
+        manifests_root = base_dir / "manifests"
+        models = []
+        if manifests_root.exists():
+            for registry_dir in manifests_root.iterdir():
+                if not registry_dir.is_dir():
+                    continue
+                for namespace_dir in registry_dir.iterdir():
+                    if not namespace_dir.is_dir():
+                        continue
+                    namespace = namespace_dir.name
+                    for model_dir in namespace_dir.iterdir():
+                        if not model_dir.is_dir():
+                            continue
+                        model_base = model_dir.name
+                        for tag_file in model_dir.iterdir():
+                            if tag_file.is_file() and not tag_file.name.startswith("."):
+                                tag = tag_file.name
+                                if namespace == "library":
+                                    models.append(f"{model_base}:{tag}")
+                                else:
+                                    models.append(f"{namespace}/{model_base}:{tag}")
+            return models
+    except Exception as e:
+        logger.debug("Ollama filesystem fallback list failed: %s", e)
+
     return []
 
 
