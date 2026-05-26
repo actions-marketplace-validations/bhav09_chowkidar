@@ -53,6 +53,13 @@ class ReportHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     report_content: str = ""
     report_path: Path | None = None
 
+    def do_OPTIONS(self) -> None:
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
+        self.end_headers()
+
     def do_GET(self) -> None:
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
@@ -61,6 +68,7 @@ class ReportHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         if path in ("/", "/index.html", "/report"):
             self.send_response(200)
             self.send_header("Content-type", "text/html; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
 
             content = self.report_content
@@ -98,6 +106,7 @@ class ReportHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps({"success": success, "message": message}).encode("utf-8"))
 

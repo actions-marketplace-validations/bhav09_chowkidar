@@ -48,7 +48,15 @@
     "google/gemini-2.0-flash": {"arena_elo": 1248, "mmlu": 82.0, "human_eval": 80.5},
     "google/gemini-2.5-pro-preview": {"arena_elo": 1275, "mmlu": 86.0, "human_eval": 85.0},
     "google/gemini-2.5-flash-preview": {"arena_elo": 1230, "mmlu": 80.0, "human_eval": 78.0},
+    "google/gemini-2.5-flash": {"arena_elo": 1255, "mmlu": 83.5, "human_eval": 82.0},
+    "google/gemini-2.5-pro": {"arena_elo": 1290, "mmlu": 89.0, "human_eval": 88.5},
     "mistral/mistral-small-latest": {"arena_elo": 1140, "mmlu": 72.0, "human_eval": 55.0},
-    "mistral/mistral-large-latest": {"arena_elo": 1225, "mmlu": 84.0, "human_eval": 73.0}
+    "mistral/mistral-large-latest": {"arena_elo": 1225, "mmlu": 84.0, "human_eval": 73.0},
+    "meta/llama-3.1-8b-instruct": {"arena_elo": 1180, "mmlu": 73.0, "human_eval": 72.2},
+    "meta/llama-3.3-70b-instruct": {"arena_elo": 1265, "mmlu": 86.0, "human_eval": 83.5},
+    "deepseek/deepseek-v3": {"arena_elo": 1285, "mmlu": 88.5, "human_eval": 89.0},
+    "deepseek/deepseek-r1": {"arena_elo": 1345, "mmlu": 92.5, "human_eval": 96.3},
+    "qwen/qwen-2.5-72b-instruct": {"arena_elo": 1270, "mmlu": 85.0, "human_eval": 84.5},
+    "qwen/qwen-2.5-coder-32b-instruct": {"arena_elo": 1245, "mmlu": 82.5, "human_eval": 92.7}
   }
 }

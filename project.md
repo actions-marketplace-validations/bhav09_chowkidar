@@ -1,6 +1,6 @@
 # Chowkidar — Enhanced Task Brief (ETB)
 
-## Status: APPROVED (Phase 16: Hardening Benchmark Reliability And Security in progress)
+## Status: APPROVED (Phase 16 in progress; Phase 17 under review)
 
 ---
 
@@ -200,4 +200,39 @@ Establish high-grade reliability, security, and configurability for model benchm
 - **Input Validation**:constructed URLs must lie within the configured base URL; remote JSON keys/values are strictly validated (no shell injection, command injection, or script injection).
 - **CORS & Access Controls**: Same-origin only, no wildcard origins, and authentication/path allowlist controls for sensitive endpoints.
 - **Data Protection**: Local registry data and failure logs are sanitized before storage and escaped before display.
+
+---
+
+## Phase 17: Cross-Family Recommendations and Detailed Capability Reporting (PENDING APPROVAL)
+
+### Objectives
+Provide comprehensive and provider-agnostic replacement alternatives and precise capability differences in all generated report formats (Markdown, JSON, and HTML).
+
+1. **Intelligent Cross-Family Selection**: Categorize models into cost-efficient (low-tier) and reasoning-heavy (high-tier) buckets. For any legacy/deprecated model, dynamically select the best alternative models from *different* provider families.
+2. **Granular Capability Diffs**: Leverage existing model capability specifications to calculate exact deltas (context window, max output tokens, vision, tool use, json mode, streaming) between the current model and all suggested cross-family alternatives.
+3. **Rich HTML Interactivity**: Redesign the HTML deprecation report to include expandable detailed panels for each flagged model. Under these panels, display a beautifully structured comparison grid showing capability diffs and alternative model cards.
+4. **Comprehensive Markdown Reporting**: Enhance the Markdown report format with a detailed model-by-model appendix section outlining cross-family alternatives and their capability diffs.
+5. **Robust Backwards-Compatible API**: Extend the `Recommendation` dataclass with a new `cross_family_recommendations` field, ensuring perfect serialization for JSON reporting and IDE/MCP tool integrations.
+
+### Security Invariants & Guardrails
+- **Strictly Offline**: All capability and alternative recommendation logic must remain 100% local/offline with zero external requests.
+- **Input Escaping**: Ensure all dynamic model names, variable names, and capability values are strictly escaped in the HTML/Markdown outputs to prevent any injection vectors.
+
+
+## Phase 18: Purpose-Aware Model Recommendations and Cost-Difference Percentage Analysis (COMPLETED)
+
+### Objectives
+Provide deeply personalized model migration suggestions tailored specifically to the model's exact usage purpose and context in the project codebase, complete with custom benchmarks and precise token pricing percentage calculations.
+
+1. **Context-Driven Use Case Classification**: Automatically analyze file paths, names, and code variables to classify model references into distinct use cases (`coding`, `agents/reasoning`, `embeddings/search`, `extraction/structured`, `tests/eval`, `chat/general`).
+2. **Specialized Use Case Recommendations**: Map alternative models directly based on the classified project use case rather than generic tiers. E.g., suggest Qwen 2.5 Coder and Claude 3.5 Sonnet for `coding` tasks, or DeepSeek R1 and OpenAI O1 for `agents/reasoning`.
+3. **Use Case Relevant Benchmarks**: Highlight and contextualize the specific industry benchmarks relevant to the classified use case (e.g., HumanEval/SWE-bench for coding, GPQA/MATH for reasoning, MTEB for vector embeddings).
+4. **Token Cost-Difference Percentage Comparison**: Expand baseline pricing definitions to include leading open-source and commercial models. Dynamically calculate input/output token price variations in percentage terms, displaying clear, colored badges (e.g., "saves ~69%" or "costs ~120% more").
+5. **Interactive UI Visualization**: Update the generated HTML/Markdown reports with custom Use Case badges, targeted benchmark descriptions, and cost-impact badges for both primary and alternative model cards.
+
+### Security Invariants & Guardrails
+- **Zero Online Leakage**: All pricing calculations and classification heuristics must execute 100% locally and offline.
+- **Fail-safe Fallbacks**: Fall back gracefully to `chat/general` if variables or files cannot be parsed, ensuring robust report generation.
+
+
 

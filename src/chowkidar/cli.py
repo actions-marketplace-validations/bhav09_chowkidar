@@ -283,7 +283,7 @@ def check(
         if record.replacement:
             from .recommendations import build_recommendation
             from .benchmarks import format_benchmark_delta_cli
-            recommendation = build_recommendation(canonical, record, registry=registry)
+            recommendation = build_recommendation(canonical, record, registry=registry, variable_name=m["variable"], file_path=m["file"])
             suffix = format_benchmark_delta_cli(recommendation.benchmark_comparison)
             replacement = f"{record.replacement}{suffix}"
 
@@ -801,7 +801,7 @@ def update(
         record = registry.get_model(canonical)
         if record and record.sunset_date and record.replacement:
             if not registry.is_pinned(canonical):
-                recommendation = build_recommendation(canonical, record, registry=registry)
+                recommendation = build_recommendation(canonical, record, registry=registry, variable_name=m["variable"], file_path=m["file"])
                 if not recommendation.recommended_model:
                     continue
                 comp = recommendation.benchmark_comparison

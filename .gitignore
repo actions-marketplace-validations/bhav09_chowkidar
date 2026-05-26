@@ -55,3 +55,4 @@ node_modules/
 .ruff_cache/
 # Chowkidar auto-generated IDE rules
 .cursor/rules/chowkidar-alerts.mdc
+.chowkidar/

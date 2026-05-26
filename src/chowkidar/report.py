@@ -62,7 +62,7 @@ def generate_report(
             if record and record.sunset_date:
                 entry["sunset_date"] = record.sunset_date
                 entry["replacement"] = record.replacement
-                recommendation = build_recommendation(canonical, record, registry=registry)
+                recommendation = build_recommendation(canonical, record, registry=registry, variable_name=m["variable"], file_path=m["file"])
                 entry["recommendation"] = recommendation.to_dict()
                 entry["manual_review_required"] = recommendation.manual_review_required
                 risks = recommendation.commercial_risks + recommendation.future_risks + recommendation.privacy_risks
@@ -169,6 +169,43 @@ def _render_markdown(projects_data: list[dict], now: datetime, sync_statuses: di
                          f"| {m['sunset_date'] or '-'} | {days} | {repl} | {cost} | {review} |")
         lines.append("")
 
+    # Generate Cross-Family Recommendations Appendix if any are found
+    has_alternatives = False
+    appendix_lines = [
+        "---",
+        "## Appendix: Cross-Family Alternative Recommendations",
+        "For models facing deprecation, Chowkidar matches legacy identifiers with equivalent-tier active models from other provider families.",
+        ""
+    ]
+
+    for proj in projects_data:
+        deprecated = [m for m in proj["models"] if m["status"] != "active"]
+        for m in deprecated:
+            rec = m.get("recommendation")
+            if rec and rec.get("cross_family_recommendations"):
+                has_alternatives = True
+                appendix_lines.append(f"### Alternatives for `{m['variable']}` ({m['model']})")
+                appendix_lines.append(f"* **File / Location**: `{m['file']}`")
+                appendix_lines.append("")
+                
+                for alt in rec["cross_family_recommendations"]:
+                    appendix_lines.append(f"#### Provider: **{alt['provider'].upper()}** — `{alt['model']}`")
+                    appendix_lines.append(f"*{alt['reason']}*")
+                    appendix_lines.append("")
+                    appendix_lines.append("| Capability | Old Value | New Value | Delta |")
+                    appendix_lines.append("|------------|-----------|-----------|-------|")
+                    
+                    for d in alt.get("capability_diffs", []):
+                        label = d["label"]
+                        old_val = d["old_value"]
+                        new_val = d["new_value"]
+                        ctype = d["change_type"]
+                        appendix_lines.append(f"| {label} | {old_val} | {new_val} | {ctype} |")
+                    appendix_lines.append("")
+
+    if has_alternatives:
+        lines.extend(appendix_lines)
+
     return "\n".join(lines)
 
 
@@ -248,11 +285,21 @@ def _render_html(projects_data: list[dict], now: datetime, sync_statuses: dict[s
             review = "Yes" if m.get("manual_review_required") else "No"
             risk = m.get("risk_summary") or "-"
             
-            action_btn = (
-                f'<button class="btn-action btn-open-editor" data-file-path="{html.escape(m["file"])}">'
-                f'✏️ Open in Editor</button>'
-                if m["file"] else "-"
-            )
+            action_btn = ""
+            if m["file"]:
+                action_btn += (
+                    f'<button class="btn-action btn-open-editor" data-file-path="{html.escape(m["file"])}" style="margin-right: 0.5rem; margin-bottom: 0.25rem;">'
+                    f'✏️ Open in Editor</button>'
+                )
+            
+            detail_id = f"details-{proj['name']}-{m['variable']}".replace(".", "-").replace("[", "-").replace("]", "-")
+            if rec and rec.get("cross_family_recommendations"):
+                action_btn += (
+                    f'<button class="btn-action btn-toggle-details" data-target="{html.escape(detail_id)}" style="background-color: #198754; border-color: #198754; margin-bottom: 0.25rem;">'
+                    f'📋 Hide Alternatives</button>'
+                )
+            elif not action_btn:
+                action_btn = "-"
 
             rows_html.append(
                 f"<tr>"
@@ -270,6 +317,166 @@ def _render_html(projects_data: list[dict], now: datetime, sync_statuses: dict[s
                 f"<td>{action_btn}</td>"
                 f"</tr>"
             )
+
+            # Collapsible details row showing cross-family recommendations
+            if rec and rec.get("cross_family_recommendations"):
+                alts_html = []
+                
+                # Use case specific headers & benchmarks info
+                use_case = rec.get("use_case", "chat/general")
+                if use_case == "coding":
+                    uc_label = "Coding & Software Engineering"
+                    uc_badge_color = "#6f42c1"  # purple
+                    uc_benchmarks = "Prioritized Benchmarks: <b>HumanEval</b> (pass@1 python accuracy) and <b>SWE-bench</b>."
+                elif use_case == "agents/reasoning":
+                    uc_label = "Agents & Deep Reasoning"
+                    uc_badge_color = "#fd7e14"  # orange
+                    uc_benchmarks = "Prioritized Benchmarks: <b>MATH</b>, <b>GPQA</b> (Graduate-Level Q&A), and <b>MMLU-Pro</b>."
+                elif use_case == "embeddings/search":
+                    uc_label = "Embeddings & Vector Search"
+                    uc_badge_color = "#20c997"  # teal
+                    uc_benchmarks = "Prioritized Benchmarks: <b>MTEB</b> (Massive Text Embedding Benchmark)."
+                elif use_case == "extraction/structured":
+                    uc_label = "Data Extraction & Parsing"
+                    uc_badge_color = "#0dcaf0"  # cyan
+                    uc_benchmarks = "Prioritized Benchmarks: <b>JSON Mode / Tool Schema accuracy</b>."
+                elif use_case == "tests/eval":
+                    uc_label = "Testing & Mock Evaluation"
+                    uc_badge_color = "#0d6efd"  # blue
+                    uc_benchmarks = "Prioritized Benchmarks: <b>Cost/million</b> and <b>Inference latency</b>."
+                else:
+                    uc_label = "General Conversation & Chat"
+                    uc_badge_color = "#6c757d"  # gray
+                    uc_benchmarks = "Prioritized Benchmarks: <b>LMSYS Chatbot Arena Elo</b> and <b>MMLU</b>."
+
+                # First, if there's a primary provider recommended replacement, show its detailed capabilities
+                if m["replacement"] and m["replacement"] != "-":
+                    primary_provider = m["replacement"].split("/")[0] if "/" in m["replacement"] else "provider"
+                    primary_diffs = []
+                    for d in rec.get("capability_diffs", []):
+                        label = html.escape(d["label"])
+                        old_val = html.escape(d["old_value"])
+                        new_val = html.escape(d["new_value"])
+                        ctype = d["change_type"]
+                        
+                        if ctype in ("improved", "gained"):
+                            color_style = "color: #198754; font-weight: bold;"
+                            arrow = "──&gt;"
+                        elif ctype in ("degraded", "lost"):
+                            color_style = "color: #dc3545; font-weight: bold;"
+                            arrow = "──&gt;"
+                        else:
+                            color_style = "color: #6c757d;"
+                            arrow = "=="
+                        
+                        primary_diffs.append(
+                            f'<li style="margin: 0.25rem 0; {color_style}">'
+                            f'{label}: {old_val} {arrow} {new_val} ({ctype})'
+                            f'</li>'
+                        )
+                    primary_diffs_html = "".join(primary_diffs) if primary_diffs else "<li style='color: #6c757d;'>No capability changes</li>"
+                    
+                    primary_cost = m.get("cost_summary") or "-"
+                    if "saves" in primary_cost.lower():
+                        cost_badge_color = "#198754"
+                    elif "costs" in primary_cost.lower() or "more" in primary_cost.lower():
+                        cost_badge_color = "#dc3545"
+                    else:
+                        cost_badge_color = "#6c757d"
+
+                    primary_card = (
+                        f'<div class="alt-card" style="border: 2px solid #198754; border-radius: 6px; padding: 1rem; background-color: var(--bg-color); box-shadow: 0 2px 4px rgba(25,135,84,0.1); position: relative;">'
+                        f'  <div style="position: absolute; top: -10px; right: 10px; background-color: #198754; color: white; font-size: 0.7em; font-weight: bold; padding: 0.2rem 0.5rem; border-radius: 4px;">PRIMARY SUCCESSOR</div>'
+                        f'  <h4 style="margin: 0 0 0.5rem 0; font-size: 1.05em; display: flex; align-items: center; gap: 0.5rem;">'
+                        f'    <span class="badge" style="background-color: #198754; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.75em;">{html.escape(primary_provider.upper())}</span>'
+                        f'    <code style="color: var(--highlight-model-color); font-weight: bold;">{html.escape(m["replacement"])}</code>'
+                        f'  </h4>'
+                        f'  <p style="font-size: 0.9em; margin: 0 0 0.5rem 0; line-height: 1.4; color: var(--text-color); opacity: 0.85;">{html.escape(rec.get("reason", "Official provider recommended successor model."))}</p>'
+                        f'  <p style="font-size: 0.85em; margin: 0 0 0.75rem 0; color: var(--text-color);">💰 Cost: <span class="badge" style="background-color: {cost_badge_color}; color: white; padding: 0.25em 0.5em; border-radius: 4px; font-size: 0.85em; text-transform: none; font-weight: bold;">{html.escape(primary_cost)}</span></p>'
+                        f'  <div style="font-size: 0.85em; border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">'
+                        f'    <strong style="display: block; margin-bottom: 0.25rem; font-size: 0.9em;">Capability Shifts:</strong>'
+                        f'    <ul style="margin: 0; padding-left: 1.2rem; list-style-type: square;">'
+                        f'      {primary_diffs_html}'
+                        f'    </ul>'
+                        f'  </div>'
+                        f'</div>'
+                    )
+                    alts_html.append(primary_card)
+
+                for alt in rec["cross_family_recommendations"]:
+                    diff_items = []
+                    for d in alt.get("capability_diffs", []):
+                        label = html.escape(d["label"])
+                        old_val = html.escape(d["old_value"])
+                        new_val = html.escape(d["new_value"])
+                        ctype = d["change_type"]
+                        
+                        if ctype in ("improved", "gained"):
+                            color_style = "color: #198754; font-weight: bold;"
+                            arrow = "──&gt;"
+                        elif ctype in ("degraded", "lost"):
+                            color_style = "color: #dc3545; font-weight: bold;"
+                            arrow = "──&gt;"
+                        else:
+                            color_style = "color: #6c757d;"
+                            arrow = "=="
+                        
+                        diff_items.append(
+                            f'<li style="margin: 0.25rem 0; {color_style}">'
+                            f'{label}: {old_val} {arrow} {new_val} ({ctype})'
+                            f'</li>'
+                        )
+                    
+                    diffs_list_html = "".join(diff_items) if diff_items else "<li style='color: #6c757d;'>No capability changes</li>"
+                    
+                    alt_cost = alt.get("cost_summary", "No pricing data")
+                    if "saves" in alt_cost.lower():
+                        alt_cost_color = "#198754"
+                    elif "costs" in alt_cost.lower() or "more" in alt_cost.lower():
+                        alt_cost_color = "#dc3545"
+                    else:
+                        alt_cost_color = "#6c757d"
+
+                    alt_card = (
+                        f'<div class="alt-card" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; background-color: var(--bg-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
+                        f'  <h4 style="margin: 0 0 0.5rem 0; font-size: 1.05em; display: flex; align-items: center; gap: 0.5rem;">'
+                        f'    <span class="badge" style="background-color: #0d6efd; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.75em;">{html.escape(alt["provider"].upper())}</span>'
+                        f'    <code style="color: var(--highlight-model-color);">{html.escape(alt["model"])}</code>'
+                        f'  </h4>'
+                        f'  <p style="font-size: 0.9em; margin: 0 0 0.5rem 0; line-height: 1.4; color: var(--text-color); opacity: 0.85;">{html.escape(alt["reason"])}</p>'
+                        f'  <p style="font-size: 0.85em; margin: 0 0 0.75rem 0; color: var(--text-color);">💰 Cost: <span class="badge" style="background-color: {alt_cost_color}; color: white; padding: 0.25em 0.5em; border-radius: 4px; font-size: 0.85em; text-transform: none; font-weight: bold;">{html.escape(alt_cost)}</span></p>'
+                        f'  <div style="font-size: 0.85em; border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">'
+                        f'    <strong style="display: block; margin-bottom: 0.25rem; font-size: 0.9em;">Capability Shifts:</strong>'
+                        f'    <ul style="margin: 0; padding-left: 1.2rem; list-style-type: square;">'
+                        f'      {diffs_list_html}'
+                        f'    </ul>'
+                        f'  </div>'
+                        f'</div>'
+                    )
+                    alts_html.append(alt_card)
+                
+                grid_html = "".join(alts_html)
+                
+                details_row = (
+                    f'<tr id="{html.escape(detail_id)}" class="details-row" style="display: table-row; background-color: var(--header-bg);">'
+                    f'  <td colspan="11" style="padding: 1.5rem; border-top: none;">'
+                    f'    <div style="border-left: 4px solid #198754; padding-left: 1rem;">'
+                    f'      <h3 style="margin: 0 0 0.75rem 0; font-size: 1.1em; color: #198754; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">'
+                    f'        🔄 Use-Case Aware Alternatives for <code>{html.escape(m["model"])}</code>'
+                    f'        <span class="badge" style="background-color: {uc_badge_color}; color: white; font-size: 0.65em; padding: 0.25em 0.6em; border-radius: 4px; text-transform: none; font-weight: bold;">Use Case: {html.escape(uc_label)}</span>'
+                    f'      </h3>'
+                    f'      <p style="font-size: 0.9em; margin: 0 0 1rem 0; color: #6c757d;">'
+                    f'        Chowkidar has analyzed your usage in the codebase and identified this reference\'s specific context and purpose. '
+                    f'        {uc_benchmarks}'
+                    f'      </p>'
+                    f'      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">'
+                    f'        {grid_html}'
+                    f'      </div>'
+                    f'    </div>'
+                    f'  </td>'
+                    f'</tr>'
+                )
+                rows_html.append(details_row)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -453,8 +660,12 @@ def _render_html(projects_data: list[dict], now: datetime, sync_statuses: dict[s
 <script>
 async function openInEditor(filePath) {{
   const toast = document.getElementById("toast");
+  let url = `/open-editor?path=${{encodeURIComponent(filePath)}}`;
+  if (window.location.protocol === "file:") {{
+    url = `http://127.0.0.1:51731/open-editor?path=${{encodeURIComponent(filePath)}}`;
+  }}
   try {{
-    const response = await fetch(`/open-editor?path=${{encodeURIComponent(filePath)}}`);
+    const response = await fetch(url);
     const data = await response.json();
     if (data.success) {{
       showToast("Successfully opened " + filePath.split(/[\\\\/]/).pop() + " in default editor!", true);
@@ -462,7 +673,28 @@ async function openInEditor(filePath) {{
       showToast("Failed to open: " + data.message, false);
     }}
   }} catch (err) {{
-    showToast("Error: " + err.message, false);
+    if (window.location.protocol === "file:") {{
+      let success = false;
+      for (let port = 51732; port <= 51740; port++) {{
+        try {{
+          const fallbackUrl = `http://127.0.0.1:${{port}}/open-editor?path=${{encodeURIComponent(filePath)}}`;
+          const response = await fetch(fallbackUrl);
+          const data = await response.json();
+          if (data.success) {{
+            showToast("Successfully opened " + filePath.split(/[\\\\/]/).pop() + " in default editor!", true);
+            success = true;
+            break;
+          }}
+        }} catch (e) {{
+          // try next port
+        }}
+      }}
+      if (!success) {{
+        showToast("Error: Local report server is not running. Run 'chowkidar report --format html' to start it.", false);
+      }}
+    }} else {{
+      showToast("Error: " + err.message, false);
+    }}
   }}
 }}
 
@@ -482,6 +714,22 @@ document.addEventListener("DOMContentLoaded", () => {{
       const filePath = btn.getAttribute("data-file-path");
       if (filePath) {{
         openInEditor(filePath);
+      }}
+    }});
+  }});
+
+  document.querySelectorAll(".btn-toggle-details").forEach(btn => {{
+    btn.addEventListener("click", () => {{
+      const targetId = btn.getAttribute("data-target");
+      const targetRow = document.getElementById(targetId);
+      if (targetRow) {{
+        if (targetRow.style.display === "none") {{
+          targetRow.style.display = "table-row";
+          btn.innerText = "📋 Hide Alternatives";
+        }} else {{
+          targetRow.style.display = "none";
+          btn.innerText = "📋 View Alternatives";
+        }}
       }}
     }});
   }});

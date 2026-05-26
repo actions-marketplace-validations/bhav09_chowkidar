@@ -38,9 +38,17 @@ KNOWN_PRICING: dict[str, dict[str, float | int]] = {
     "google/gemini-2.0-flash": {"input": 0.10, "output": 0.40, "context": 1048576},
     "google/gemini-2.5-pro-preview": {"input": 1.25, "output": 10.00, "context": 1048576},
     "google/gemini-2.5-flash-preview": {"input": 0.15, "output": 0.60, "context": 1048576},
+    "google/gemini-2.5-flash": {"input": 0.075, "output": 0.30, "context": 1048576},
+    "google/gemini-2.5-pro": {"input": 1.25, "output": 5.00, "context": 2097152},
     "mistral/mistral-small-latest": {"input": 0.10, "output": 0.30, "context": 32000},
     "mistral/mistral-large-latest": {"input": 2.00, "output": 6.00, "context": 128000},
     "mistral/codestral-latest": {"input": 0.30, "output": 0.90, "context": 256000},
+    "meta/llama-3.1-8b-instruct": {"input": 0.05, "output": 0.05, "context": 128000},
+    "meta/llama-3.3-70b-instruct": {"input": 0.59, "output": 0.59, "context": 128000},
+    "deepseek/deepseek-v3": {"input": 0.14, "output": 0.28, "context": 128000},
+    "deepseek/deepseek-r1": {"input": 0.55, "output": 2.19, "context": 128000},
+    "qwen/qwen-2.5-72b-instruct": {"input": 0.40, "output": 0.40, "context": 128000},
+    "qwen/qwen-2.5-coder-32b-instruct": {"input": 0.20, "output": 0.20, "context": 128000},
 }
 
 

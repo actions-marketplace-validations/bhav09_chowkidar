@@ -1,7 +1,7 @@
 # Chowkidar
 
-[![PyPI Version](https://img.shields.io/badge/pypi-v0.8.0-blue)](https://pypi.org/project/chowkidar/0.8.0/)
-[![GitHub Release](https://img.shields.io/badge/release-v0.8.0-blue)](https://github.com/bhav09/chowkidar/releases/latest)
+[![PyPI Version](https://img.shields.io/badge/pypi-v0.9.1-blue)](https://pypi.org/project/chowkidar/0.9.1/)
+[![GitHub Release](https://img.shields.io/badge/release-v0.9.1-blue)](https://github.com/bhav09/chowkidar/releases/latest)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/chowkidar?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/chowkidar)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -24,7 +24,7 @@ Everything runs on your machine. Zero data exfiltration.
   Explicit, contract-ready adapter interface designed for dry-running, updating, and verifying remote secret/config stores on Vercel, Kubernetes, AWS Secrets/SSM, GCP Secret Manager, and Azure Key Vault (currently running in disabled stub mode pending credential integration).
 
 - **Unified Risk & Capability Analysis**
-  Guarantees migrations won't degrade your system by verifying context windows, output tokens, vision, tool usage, JSON mode, streaming, and cost impacts.
+  Guarantees migrations won't degrade your system by verifying context windows, output tokens, vision, tool usage, JSON mode, streaming, and cost impacts. Provides interactive cross-family model recommendations (including latest commercial and open-source models like Meta Llama, DeepSeek, and Qwen) with beautifully detailed capability deltas (improved, same, degraded, gained, lost).
 
 - **AI-Assistant Rules & MCP Server**
   Generates zero-config rule instructions (`.mdc`, `CLAUDE.md`, etc.) to guide Cursor, Claude Code, Copilot, and Windsurf, alongside an interactive MCP server.

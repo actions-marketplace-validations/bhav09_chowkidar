@@ -103,3 +103,48 @@ def test_report_path_redaction(project_with_env, registry):
     # The absolute parent paths (like /var/folders/ or /Users/) should be redacted
     assert str(project_with_env) not in report_redacted
     assert "[REDACTED]" in report_redacted
+
+
+def test_cross_family_recommendations(project_with_env, registry):
+    from chowkidar.recommendations import get_cross_family_alternatives, build_recommendation
+    
+    # 1. Test raw recommendation logic
+    rec = get_cross_family_alternatives("openai/gpt-3.5-turbo")
+    assert len(rec) > 0
+    providers = [r["provider"] for r in rec]
+    assert "openai" not in providers
+    assert "anthropic" in providers
+    assert "google" in providers
+    assert "mistral" in providers
+    assert "meta (open-source)" in providers
+    assert "deepseek (open-source)" in providers
+    assert "qwen (open-source)" in providers
+    
+    # Verify we suggest the latest models (e.g. Claude 3.5 Haiku, Gemini 2.5 Flash, Mistral Small, Llama 3.1 8B, Qwen 2.5 Coder 32B)
+    models = [r["model"] for r in rec]
+    assert "anthropic/claude-3.5-haiku-20241022" in models
+    assert "google/gemini-2.5-flash" in models
+    assert "mistral/mistral-small-latest" in models
+    assert "meta/llama-3.1-8b-instruct" in models
+    assert "qwen/qwen-2.5-coder-32b-instruct" in models
+
+    # 2. Test markdown report contains Appendix
+    md_report = generate_report([project_with_env], "markdown", registry)
+    assert "Appendix: Cross-Family Alternative Recommendations" in md_report
+    assert "anthropic/claude-3.5-haiku-20241022" in md_report
+    assert "google/gemini-2.5-flash" in md_report
+    assert "meta/llama-3.1-8b-instruct" in md_report
+
+    # 3. Test HTML report contains toggle button, primary card, use case badge, and detail row
+    html_report = generate_report([project_with_env], "html", registry)
+    assert "Hide Alternatives" in html_report
+    assert "PRIMARY SUCCESSOR" in html_report
+    assert "details-row" in html_report
+    assert "display: table-row" in html_report
+    assert "anthropic/claude-3.5-haiku-20241022" in html_report
+    assert "google/gemini-2.5-flash" in html_report
+    assert "meta/llama-3.1-8b-instruct" in html_report
+    assert "Use Case: Testing &amp; Mock Evaluation" in html_report
+    assert "Cost:" in html_report
+    assert "saves" in html_report or "costs" in html_report or "similar" in html_report
+

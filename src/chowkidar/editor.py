@@ -58,9 +58,21 @@ def open_in_editor(file_path_str: str) -> bool:
     system = platform.system()
     try:
         if system == "Darwin":
-            logger.info("Fallback macOS: opening %s", parent_dir)
-            subprocess.run(["open", parent_dir], check=True, timeout=10)
-            return True
+            # On macOS, try to open the file with Cursor, VS Code, or default text editor, then fall back to opening parent folder
+            for cmd in [
+                ["open", "-a", "Cursor", target_path],
+                ["open", "-a", "Visual Studio Code", target_path],
+                ["open", "-t", target_path],
+                ["open", target_path],
+                ["open", parent_dir]
+            ]:
+                try:
+                    logger.info("Mac OS open attempt: %s", cmd)
+                    subprocess.run(cmd, check=True, timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return True
+                except subprocess.SubprocessError:
+                    continue
+            return False
         elif system == "Linux":
             logger.info("Fallback Linux: opening %s", parent_dir)
             subprocess.run(["xdg-open", parent_dir], check=True, timeout=10)
