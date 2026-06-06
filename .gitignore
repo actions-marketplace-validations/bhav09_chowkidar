@@ -54,5 +54,7 @@ node_modules/
 # Ruff
 .ruff_cache/
 # Chowkidar auto-generated IDE rules
-.cursor/rules/chowkidar-alerts.mdc
+.cursor/
 .chowkidar/
+# Chowkidar auto-generated IDE rules
+.cursor/rules/chowkidar-alerts.mdc

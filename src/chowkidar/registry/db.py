@@ -213,6 +213,18 @@ class Registry:
 
     # --- Notifications ---
 
+    @staticmethod
+    def _normalize_timestamp(dt: datetime | None = None) -> str:
+        """Return UTC timestamp in SQLite-compatible YYYY-MM-DD HH:MM:SS format."""
+        if dt is None:
+            dt = datetime.now(timezone.utc).replace(tzinfo=None)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    @staticmethod
+    def _cooldown_cutoff(cooldown_hours: int) -> str:
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=cooldown_hours)
+        return Registry._normalize_timestamp(cutoff)
+
     def log_notification(
         self,
         project_path: str,
@@ -227,17 +239,81 @@ class Registry:
         report_path: str | None = None,
         recommendation: str | None = None,
         error: str | None = None,
+        notified_at: str | None = None,
     ) -> None:
+        timestamp = notified_at or self._normalize_timestamp()
         self.conn.execute(
             """INSERT INTO notification_log (
                 project_path, model_id, threshold, file_path, variable_name, channel,
-                delivery_status, webhook_status, report_path, recommendation, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                delivery_status, webhook_status, report_path, recommendation, error, notified_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 project_path, model_id, threshold, file_path, variable_name, channel,
-                delivery_status, webhook_status, report_path, recommendation, error,
+                delivery_status, webhook_status, report_path, recommendation, error, timestamp,
             ),
         )
+        self.conn.commit()
+
+    def update_notification_status(
+        self,
+        project_path: str,
+        model_id: str,
+        threshold: str,
+        delivery_status: str,
+        *,
+        file_path: str | None = None,
+        variable_name: str | None = None,
+        webhook_status: str | None = None,
+        report_path: str | None = None,
+        recommendation: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Update the most recent pending/delivered notification row for a reference."""
+        query = [
+            "UPDATE notification_log SET delivery_status = ?, webhook_status = ?,",
+            "report_path = COALESCE(?, report_path), recommendation = COALESCE(?, recommendation),",
+            "error = ? WHERE id = (",
+            "SELECT id FROM notification_log",
+            "WHERE project_path = ? AND model_id = ? AND threshold = ?",
+            "AND delivery_status IN ('pending', 'delivered')",
+        ]
+        params: list[str | None] = [
+            delivery_status, webhook_status, report_path, recommendation, error,
+            project_path, model_id, threshold,
+        ]
+        if file_path is not None:
+            query.append("AND file_path = ?")
+            params.append(file_path)
+        if variable_name is not None:
+            query.append("AND variable_name = ?")
+            params.append(variable_name)
+        query.append("ORDER BY id DESC LIMIT 1)")
+        self.conn.execute(" ".join(query), params)
+        self.conn.commit()
+
+    def delete_pending_notifications(
+        self,
+        project_path: str,
+        model_id: str,
+        threshold: str,
+        *,
+        file_path: str | None = None,
+        variable_name: str | None = None,
+    ) -> None:
+        """Remove pending rows after a failed notify so retries are not blocked."""
+        query = [
+            "DELETE FROM notification_log",
+            "WHERE project_path = ? AND model_id = ? AND threshold = ?",
+            "AND delivery_status = 'pending'",
+        ]
+        params: list[str] = [project_path, model_id, threshold]
+        if file_path is not None:
+            query.append("AND file_path = ?")
+            params.append(file_path)
+        if variable_name is not None:
+            query.append("AND variable_name = ?")
+            params.append(variable_name)
+        self.conn.execute(" ".join(query), params)
         self.conn.commit()
 
     def is_recently_notified(
@@ -250,11 +326,12 @@ class Registry:
         file_path: str | None = None,
         variable_name: str | None = None,
     ) -> bool:
-        cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=cooldown_hours)).isoformat()
+        cutoff = self._cooldown_cutoff(cooldown_hours)
         query = [
             "SELECT 1 FROM notification_log",
             "WHERE project_path = ? AND model_id = ? AND threshold = ?",
-            "AND notified_at > ? AND COALESCE(delivery_status, 'delivered') = 'delivered'",
+            "AND datetime(replace(replace(notified_at, 'T', ' '), 'Z', '')) > datetime(?)",
+            "AND COALESCE(delivery_status, 'delivered') IN ('delivered', 'pending')",
         ]
         params: list[str] = [project_path, model_id, threshold, cutoff]
         if file_path is not None:
@@ -266,6 +343,27 @@ class Registry:
         query.append("LIMIT 1")
         row = self.conn.execute(" ".join(query), params).fetchone()
         return row is not None
+
+    def has_recent_folder_notification(
+        self,
+        project_path: str,
+        models: list[dict],
+        cooldown_hours: int = 24,
+    ) -> bool:
+        """True when every expiring reference in this scan was already notified."""
+        if not models:
+            return False
+        return all(
+            self.is_recently_notified(
+                project_path,
+                model["canonical"],
+                model["threshold"],
+                cooldown_hours,
+                file_path=model["file"],
+                variable_name=model["variable"],
+            )
+            for model in models
+        )
 
     def log_action(
         self,

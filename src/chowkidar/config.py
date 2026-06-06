@@ -1,7 +1,7 @@
 """User configuration management for Chowkidar.
 
 Config lives at ~/.chowkidar/config.toml and controls behavior like
-auto-update, rules writing, SLM model choice, scan intervals, etc.
+auto-update, rules writing, scan intervals, etc.
 """
 
 from __future__ import annotations
@@ -19,18 +19,25 @@ else:
     except ModuleNotFoundError:  # pragma: no cover
         import tomli as tomllib  # type: ignore[no-redef]
 
-def get_chowkidar_home() -> Path:
+def get_chowkidar_home(start: Path | None = None) -> Path:
     env_home = os.environ.get("CHOWKIDAR_HOME")
     if env_home:
         return Path(env_home).resolve()
-    
-    current = Path.cwd().resolve()
+
+    current = (start or Path.cwd()).resolve()
     for parent in [current] + list(current.parents):
         if (parent / ".git").exists() or (parent / ".chowkidar").exists():
             return parent / ".chowkidar"
         if parent == Path.home() or parent == parent.parent:
             break
     return current / ".chowkidar"
+
+
+def resolve_chowkidar_home(project_path: Path | str | None = None) -> Path:
+    """Resolve project-local Chowkidar home at runtime from CWD or a project path."""
+    if project_path is not None:
+        return get_chowkidar_home(Path(project_path))
+    return get_chowkidar_home()
 
 
 CHOWKIDAR_HOME = get_chowkidar_home()

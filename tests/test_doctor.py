@@ -77,6 +77,38 @@ def test_setup_command_logic(mock_full_setup, tmp_path):
         mock_registry.update_watch_timestamp.assert_called_once()
 
 
+@patch("chowkidar.slm.setup.full_setup")
+def test_setup_writes_mcp_config(mock_full_setup, tmp_path):
+    from chowkidar.cli import setup
+
+    mock_full_setup.return_value = (True, "SLM setup skipped")
+
+    (tmp_path / ".cursor").mkdir()
+    config_file = tmp_path / ".chowkidar" / "config.toml"
+    config = Config(config_file)
+
+    with patch("chowkidar.cli.CHOWKIDAR_HOME", tmp_path / ".chowkidar"), \
+         patch("chowkidar.cli._get_config", return_value=config), \
+         patch("chowkidar.registry.db.Registry") as mock_registry_class, \
+         patch("chowkidar.cli.typer.confirm", return_value=False), \
+         patch("chowkidar.scanner.scan_directory") as mock_scan_directory:
+
+        mock_registry = MagicMock()
+        mock_registry.last_sync_time.return_value = None
+        mock_registry_class.return_value = mock_registry
+
+        mock_scan_res = MagicMock()
+        mock_scan_res.all_models = []
+        mock_scan_directory.return_value = mock_scan_res
+
+        setup(skip_slm=True, non_interactive=True)
+
+        mcp_file = tmp_path / ".cursor" / "mcp.json"
+        assert mcp_file.exists()
+        data = json.loads(mcp_file.read_text(encoding="utf-8"))
+        assert "chowkidar" in data["mcpServers"]
+
+
 def test_showcase_command_generates_report(tmp_path):
     from chowkidar.cli import showcase
 

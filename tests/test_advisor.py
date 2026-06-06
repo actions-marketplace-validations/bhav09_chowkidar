@@ -231,50 +231,27 @@ def test_get_project_advisory_cache_hit(mock_save, mock_load):
 
 @patch("chowkidar.advisor._load_cache")
 @patch("chowkidar.advisor._save_cache")
-@patch("chowkidar.advisor.SLMClient")
-def test_get_project_advisory_slm_enrichment(mock_slm_client_cls, mock_save, mock_load, tmp_path):
-    mock_registry = MagicMock(spec=Registry)
-    mock_registry.last_sync_time.return_value = "2026-05-21T00:00:00"
-    
-    # Registry mock get_model
-    mock_record = ModelRecord(
-        id="openai/gpt-3.5-turbo", provider="openai", aliases=[], sunset_date="2025-09-01",
-        replacement="openai/gpt-4o-mini", replacement_confidence="high", breaking_changes=False,
-        source_url=None, current_snapshot=None, privacy_tier="unknown",
-        last_checked_at=None, created_at=None
+def test_get_project_advisory_generates_local_advice(mock_save, mock_load, tmp_path):
+    db_path = tmp_path / "registry.db"
+    registry = Registry(db_path)
+    registry.init_db()
+    registry.upsert_model(
+        model_id="openai/gpt-3.5-turbo",
+        provider="openai",
+        sunset_date="2025-09-01",
+        replacement="openai/gpt-4o-mini",
+        replacement_confidence="high",
     )
-    mock_registry.get_model.return_value = mock_record
-    mock_registry.is_pinned.return_value = False
 
     models = [{"variable": "MODEL_VAR", "model": "gpt-3.5-turbo", "canonical": "openai/gpt-3.5-turbo", "file": ".env"}]
-    
-    mock_load.return_value = {}  # Cache miss
-
-    # Mock SLM client
-    mock_client = MagicMock()
-    mock_client.is_available.return_value = True
-    mock_client.model = "gemma3:1b"
-    mock_client.advise_replacements.return_value = {
-        "advisory": [
-            {
-                "variable": "MODEL_VAR",
-                "purpose": "highly customized chat completion",
-                "recommended_model": "gpt-4o-mini",
-                "confidence": "high",
-                "reason": "Enriched reason",
-                "risk": "Enriched risk"
-            }
-        ]
-    }
-    mock_slm_client_cls.return_value = mock_client
+    mock_load.return_value = {}
 
     config = Config(tmp_path / "config.toml")
-    config.set("slm_enabled", True)
+    result = get_project_advisory("/my/project", models, registry, config)
 
-    result = get_project_advisory("/my/project", models, mock_registry, config)
-    
     assert len(result) == 1
-    assert result[0]["purpose"] == "highly customized chat completion"
-    assert result[0]["reason"] == "Enriched reason"
-    mock_client.unload_model.assert_called_once()
+    assert result[0]["variable"] == "MODEL_VAR"
+    assert result[0]["purpose"] == "general-purpose chat/text completion"
+    assert result[0]["recommended_model_canonical"] == "openai/gpt-4o-mini"
     mock_save.assert_called_once()
+    registry.close()

@@ -445,6 +445,22 @@ def status() -> None:
     deprecated = [m for m in all_models if m.sunset_date]
     console.print(f"  Registry: {len(all_models)} models, {len(deprecated)} with deprecation dates")
 
+    from .ide.mcp_config import check_mcp_readiness
+    mcp_status = check_mcp_readiness(CHOWKIDAR_HOME.parent)
+    console.print("\n  [bold]MCP[/bold]")
+    sdk_label = "[green]installed[/green]" if mcp_status["sdk_installed"] else "[red]missing[/red]"
+    console.print(f"    SDK:     {sdk_label}")
+    console.print(f"    Binary:  {mcp_status['binary']}")
+    if mcp_status["configured_files"]:
+        console.print(f"    Config:  [green]{', '.join(mcp_status['configured_files'])}[/green]")
+    else:
+        console.print("    Config:  [yellow]not configured[/yellow] — run 'chowkidar setup'")
+    if mcp_status["errors"]:
+        for err in mcp_status["errors"]:
+            console.print(f"    Error:   [red]{err}[/red]")
+    verify_label = "[green]ready[/green]" if not mcp_status["errors"] else "[red]not ready[/red]"
+    console.print(f"    Status:  {verify_label} (run 'chowkidar mcp --verify')")
+
     console.print(f"\n  Config: {config.path}")
     console.print(f"  Data:   {CHOWKIDAR_HOME}")
 
@@ -633,6 +649,13 @@ def setup(
         import logging
         logging.getLogger("chowkidar.cli").debug("Scan failed during setup: %s", e)
 
+    from .ide.mcp_config import configure_mcp_for_project
+    mcp_files = configure_mcp_for_project(project_root)
+    for mcp_file in mcp_files:
+        console.print(f"  [green]✓[/green] MCP configured: {mcp_file}")
+    if not mcp_files:
+        console.print("  [yellow]⚠[/yellow] No IDE detected for MCP — see README for manual setup")
+
     registry.close()
 
     console.print("\n[bold green]Chowkidar project setup complete![/bold green]")
@@ -640,6 +663,7 @@ def setup(
     console.print("Next steps:")
     console.print("  1. chowkidar check .  — run instant check in current project")
     console.print("  2. chowkidar daemon   — run foreground daemon check cycle")
+    console.print("  3. chowkidar mcp --verify — confirm MCP server readiness")
 
 
 # --- doctor ---
@@ -728,9 +752,41 @@ def logs(
 # --- mcp ---
 
 @app.command()
-def mcp() -> None:
+def mcp(
+    verify: bool = typer.Option(False, "--verify", help="Check MCP readiness and exit"),
+) -> None:
     """Start the MCP server (stdio transport, called by IDE)."""
+    import sys
+
+    from .ide.mcp_config import check_mcp_readiness
     from .mcp_server.server import run_server
+
+    Config.ensure_home()
+    from .registry.db import Registry
+    registry = Registry()
+    registry.init_db()
+    registry.close()
+
+    readiness = check_mcp_readiness()
+    if verify:
+        if readiness["errors"]:
+            for err in readiness["errors"]:
+                print(f"ERROR: {err}", file=sys.stderr)
+            raise typer.Exit(1)
+        print("Chowkidar MCP ready", file=sys.stderr)
+        if readiness["warnings"]:
+            for warn in readiness["warnings"]:
+                print(f"WARNING: {warn}", file=sys.stderr)
+        if readiness["configured_files"]:
+            print(f"IDE config: {', '.join(readiness['configured_files'])}", file=sys.stderr)
+        raise typer.Exit(0)
+
+    if readiness["errors"]:
+        for err in readiness["errors"]:
+            print(f"ERROR: {err}", file=sys.stderr)
+        raise typer.Exit(1)
+
+    print("Chowkidar MCP server ready (stdio)", file=sys.stderr)
     run_server()
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 EDITOR_INDICATORS: dict[str, list[str]] = {
     "cursor": [".cursor"],
     "claude_code": [".claude"],
-    "copilot": [".github"],
+    "copilot": [".github", ".vscode"],
     "windsurf": [".windsurf", ".windsurfrules"],
 }
 
@@ -47,9 +47,9 @@ def ensure_editor_dirs(project_path: Path, editor: str) -> Path:
         rules_dir.mkdir(parents=True, exist_ok=True)
         return rules_dir
     elif editor == "copilot":
-        github_dir = project_path / ".github"
-        github_dir.mkdir(parents=True, exist_ok=True)
-        return github_dir
+        vscode_dir = project_path / ".vscode"
+        vscode_dir.mkdir(parents=True, exist_ok=True)
+        return vscode_dir
     elif editor == "windsurf":
         return project_path
     else:

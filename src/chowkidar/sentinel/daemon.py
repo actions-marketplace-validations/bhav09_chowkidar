@@ -294,20 +294,39 @@ class ChowkidarDaemon:
         advisory = get_project_advisory(project_path, expiring_models, self.registry, self.config)
 
         cooldown = self.config.get("notification_cooldown_hours", 24)
-        notification_candidates = [
-            model
-            for model in expiring_models
-            if not self.registry.is_recently_notified(
-                project_path,
-                model["canonical"],
-                model["threshold"],
-                cooldown,
-                file_path=model["file"],
-                variable_name=model["variable"],
-            )
-        ]
+
+        if self.registry.has_recent_folder_notification(project_path, expiring_models, cooldown):
+            logger.info("All expiring models already notified for %s; skipping.", project_path)
+            notification_candidates = []
+        else:
+            notification_candidates = [
+                model
+                for model in expiring_models
+                if not self.registry.is_recently_notified(
+                    project_path,
+                    model["canonical"],
+                    model["threshold"],
+                    cooldown,
+                    file_path=model["file"],
+                    variable_name=model["variable"],
+                )
+            ]
 
         if notification_candidates:
+            advisory_by_var = {adv["variable"]: adv for adv in advisory}
+            for model in notification_candidates:
+                adv = advisory_by_var.get(model["variable"], {})
+                recommendation = adv.get("recommended_model_canonical") or adv.get("recommended_model")
+                self.registry.log_notification(
+                    project_path,
+                    model["canonical"],
+                    model["threshold"],
+                    file_path=model["file"],
+                    variable_name=model["variable"],
+                    delivery_status="pending",
+                    recommendation=recommendation,
+                )
+
             # Generate and save HTML report for notification click callback
             report_dir = CHOWKIDAR_HOME / "reports"
             report_dir.mkdir(parents=True, exist_ok=True)
@@ -323,25 +342,57 @@ class ChowkidarDaemon:
                 logger.error("Failed to generate and save report for %s: %s", project_path, e)
 
             max_threshold = self._max_threshold(notification_candidates)
-            delivery = self._send_folder_notification(
-                project_path, notification_candidates, advisory, max_threshold, click_target, deployment_ass
-            )
-            advisory_by_var = {adv["variable"]: adv for adv in advisory}
+            try:
+                delivery = self._send_folder_notification(
+                    project_path, notification_candidates, advisory, max_threshold, click_target, deployment_ass
+                )
+            except Exception as exc:
+                for model in notification_candidates:
+                    self.registry.delete_pending_notifications(
+                        project_path,
+                        model["canonical"],
+                        model["threshold"],
+                        file_path=model["file"],
+                        variable_name=model["variable"],
+                    )
+                raise exc
+
             for model in notification_candidates:
                 adv = advisory_by_var.get(model["variable"], {})
                 recommendation = adv.get("recommended_model_canonical") or adv.get("recommended_model")
-                self.registry.log_notification(
-                    project_path,
-                    model["canonical"],
-                    model["threshold"],
-                    file_path=model["file"],
-                    variable_name=model["variable"],
-                    delivery_status="delivered" if delivery["desktop"] else "failed",
-                    webhook_status=delivery["webhook"],
-                    report_path=click_target,
-                    recommendation=recommendation,
-                    error=delivery.get("error"),
-                )
+                if delivery["desktop"]:
+                    self.registry.update_notification_status(
+                        project_path,
+                        model["canonical"],
+                        model["threshold"],
+                        delivery_status="delivered",
+                        file_path=model["file"],
+                        variable_name=model["variable"],
+                        webhook_status=delivery["webhook"],
+                        report_path=click_target,
+                        recommendation=recommendation,
+                        error=delivery.get("error"),
+                    )
+                else:
+                    self.registry.delete_pending_notifications(
+                        project_path,
+                        model["canonical"],
+                        model["threshold"],
+                        file_path=model["file"],
+                        variable_name=model["variable"],
+                    )
+                    self.registry.log_notification(
+                        project_path,
+                        model["canonical"],
+                        model["threshold"],
+                        file_path=model["file"],
+                        variable_name=model["variable"],
+                        delivery_status="failed",
+                        webhook_status=delivery["webhook"],
+                        report_path=click_target,
+                        recommendation=recommendation,
+                        error=delivery.get("error"),
+                    )
 
         self._maybe_apply_one_day_updates(project_path, expiring_models, advisory)
 

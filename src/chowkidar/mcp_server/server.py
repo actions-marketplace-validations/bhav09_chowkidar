@@ -219,7 +219,7 @@ def update_model_env(
         return json.dumps({
             "status": "permission_denied",
             "message": (
-                "Auto-update is disabled. Enable with: chowkidar config set auto_update true\n"
+                "Auto-update is disabled. Enable with: chowkidar config auto_update true\n"
                 "Or manually update the file."
             ),
         })
@@ -251,7 +251,7 @@ def update_model_reference(
         return json.dumps({
             "status": "permission_denied",
             "message": (
-                "Auto-update is disabled. Enable with: chowkidar config set auto_update true\n"
+                "Auto-update is disabled. Enable with: chowkidar config auto_update true\n"
                 "Or run this tool with dry_run=true."
             ),
         })

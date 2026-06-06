@@ -11,7 +11,6 @@ from typing import Any
 from .config import CHOWKIDAR_HOME, Config
 from .recommendations import build_recommendation
 from .registry.db import Registry
-from .slm.client import SLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -211,97 +210,18 @@ def get_project_advisory(
     registry: Registry,
     config: Config | None = None,
 ) -> list[dict[str, Any]]:
-    """Orchestrate advisory generation. Uses cache, falls back to Gemma/local SLM if enabled,
-
-    and defaults to deterministic local heuristics.
-    """
-    config = config or Config()
+    """Orchestrate advisory generation using cache and deterministic local heuristics."""
+    _ = config or Config()
     last_sync = registry.last_sync_time()
     context_hash = calculate_context_hash(project_path, models, last_sync)
 
-    # 1. Check persistent cache
     cache = _load_cache()
     if context_hash in cache:
         logger.debug("Advisory cache hit for project '%s'", project_path)
         return cache[context_hash]
 
     logger.debug("Advisory cache miss. Generating new recommendations...")
-
-    # Generate reliable deterministic baseline
     local_advice = generate_local_advice(models, registry)
-
-    # 2. If SLM is enabled, try to enrich with local usage-aware Gemma/Ollama reasoning
-    if config.get("slm_enabled", False):
-        client = SLMClient(config)
-        if client.is_available():
-            logger.info("Local SLM is available. Enriching recommendations via '%s'...", client.model)
-
-            # Prepare sanitized context for SLM input
-            sanitized_models = []
-            for m in local_advice:
-                sanitized_models.append({
-                    "variable": m["variable"],
-                    "file": m["file"],
-                    "model": m["model"],
-                    "source_type": m.get("source_type", "env"),
-                    "proposed_fallback": m["recommended_model"],
-                    "proposed_reason": m["reason"]
-                })
-
-            slm_input = {
-                "project_folder": Path(project_path).name,
-                "findings": sanitized_models
-            }
-
-            slm_resp = client.advise_replacements(slm_input)
-
-            # Explicitly unload the model to preserve memory
-            client.unload_model()
-
-            if slm_resp and "advisory" in slm_resp:
-                enriched_list = []
-                slm_advisory = {
-                    adv.get("variable", ""): adv
-                    for adv in slm_resp["advisory"]
-                    if isinstance(adv, dict)
-                }
-
-                for local_item in local_advice:
-                    var = local_item["variable"]
-                    if var in slm_advisory:
-                        slm_item = slm_advisory[var]
-                        # Merge SLM recommendations carefully, validating values
-                        enriched_item = dict(local_item)
-                        if slm_item.get("purpose"):
-                            enriched_item["purpose"] = slm_item["purpose"]
-                        # The local SLM may enrich rationale, but replacement IDs stay on
-                        # the deterministic, capability-validated baseline.
-                        if slm_item.get("confidence") in ("high", "medium", "low"):
-                            enriched_item["confidence"] = slm_item["confidence"]
-                        if slm_item.get("reason"):
-                            enriched_item["reason"] = slm_item["reason"]
-                        if slm_item.get("risk"):
-                            enriched_item["risk"] = slm_item["risk"]
-                        enriched_list.append(enriched_item)
-                    else:
-                        enriched_list.append(local_item)
-
-                logger.info("Successfully enriched advisory using local SLM.")
-                # Save to cache
-                cache[context_hash] = enriched_list
-                _save_cache(cache)
-                return enriched_list
-            else:
-                logger.warning(
-                    "SLM advisory returned invalid format or failed. "
-                    "Falling back to robust deterministic advice."
-                )
-        else:
-            logger.debug("Local SLM '%s' is not pulled or Ollama is offline. Using local heuristics.", client.model)
-    else:
-        logger.debug("Local SLM is disabled. Using local heuristics.")
-
-    # Save to cache and return local baseline
     cache[context_hash] = local_advice
     _save_cache(cache)
     return local_advice

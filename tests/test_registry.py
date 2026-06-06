@@ -110,6 +110,70 @@ class TestNotifications:
         )
         assert not registry.is_recently_notified("/proj", "openai/gpt-3.5-turbo", "30d")
 
+    def test_is_recently_notified_same_day_space_format(self, registry):
+        """SQLite datetime('now') uses space separator; must still match within cooldown."""
+        from datetime import datetime, timedelta, timezone
+
+        recent = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
+        registry.conn.execute(
+            """INSERT INTO notification_log
+               (project_path, model_id, threshold, notified_at, delivery_status)
+               VALUES (?, ?, ?, ?, ?)""",
+            ("/proj", "openai/gpt-3.5-turbo", "30d", recent.strftime("%Y-%m-%d %H:%M:%S"), "delivered"),
+        )
+        registry.conn.commit()
+        assert registry.is_recently_notified("/proj", "openai/gpt-3.5-turbo", "30d", cooldown_hours=4)
+
+    def test_is_recently_notified_iso_format_backward_compat(self, registry):
+        from datetime import datetime, timedelta, timezone
+
+        recent = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)).isoformat()
+        registry.conn.execute(
+            """INSERT INTO notification_log
+               (project_path, model_id, threshold, notified_at, delivery_status)
+               VALUES (?, ?, ?, ?, ?)""",
+            ("/proj", "openai/gpt-3.5-turbo", "30d", recent, "delivered"),
+        )
+        registry.conn.commit()
+        assert registry.is_recently_notified("/proj", "openai/gpt-3.5-turbo", "30d", cooldown_hours=4)
+
+    def test_log_notification_stores_normalized_timestamp(self, registry):
+        registry.log_notification("/proj", "openai/gpt-3.5-turbo", "30d")
+        row = registry.conn.execute(
+            "SELECT notified_at FROM notification_log WHERE project_path = ?",
+            ("/proj",),
+        ).fetchone()
+        assert row is not None
+        assert "T" not in row["notified_at"]
+        assert len(row["notified_at"]) == 19
+
+    def test_pending_status_suppresses_retry(self, registry):
+        registry.log_notification(
+            "/proj",
+            "openai/gpt-3.5-turbo",
+            "30d",
+            delivery_status="pending",
+        )
+        assert registry.is_recently_notified("/proj", "openai/gpt-3.5-turbo", "30d")
+
+    def test_has_recent_folder_notification(self, registry):
+        registry.log_notification(
+            "/proj",
+            "openai/gpt-3.5-turbo",
+            "7d",
+            file_path="/proj/.env",
+            variable_name="OPENAI_MODEL",
+        )
+        models = [
+            {
+                "canonical": "openai/gpt-3.5-turbo",
+                "threshold": "7d",
+                "file": "/proj/.env",
+                "variable": "OPENAI_MODEL",
+            }
+        ]
+        assert registry.has_recent_folder_notification("/proj", models)
+
     def test_snooze(self, registry):
         assert not registry.is_snoozed("openai/gpt-3.5-turbo")
         registry.set_snooze("openai/gpt-3.5-turbo", 7)

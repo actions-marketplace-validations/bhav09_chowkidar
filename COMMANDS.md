@@ -131,7 +131,7 @@ Executes dry-run completions on both old and new model candidates to compare pro
 - **Usage**: `chowkidar test-migration --old <MODEL> --new <MODEL> --prompts <FILE>`
 
 ### `chowkidar test-notify`
-Fires a native mock OS desktop alert and dynamically builds a clickable report path to test action triggers.
+Fires a native mock OS desktop alert and dynamically builds a clickable report path to test action triggers. This is a diagnostic command that bypasses notification deduplication.
 - **Usage**: `chowkidar test-notify`
 
 ### `chowkidar rules write [PATH]`
@@ -151,8 +151,8 @@ Uninstalls the shell warnings hook.
 - **Usage**: `chowkidar hook uninstall`
 
 ### `chowkidar mcp`
-Launches the stdio-based MCP (Model Context Protocol) server for active IDE-level AI assistant queries and tool calls.
-- **Usage**: `chowkidar mcp`
+Launches the stdio-based MCP (Model Context Protocol) server for active IDE-level AI assistant queries and tool calls. Use `--verify` to check readiness without starting the server.
+- **Usage**: `chowkidar mcp` or `chowkidar mcp --verify`
 
 ---
 

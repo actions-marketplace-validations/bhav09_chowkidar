@@ -235,4 +235,184 @@ Provide deeply personalized model migration suggestions tailored specifically to
 - **Fail-safe Fallbacks**: Fall back gracefully to `chat/general` if variables or files cannot be parsed, ensuring robust report generation.
 
 
+---
+
+## Phase 19: Provider Sync Status — Model Detection Summary & UX Overhaul (PENDING APPROVAL)
+
+### Problem (Root Cause)
+
+The Provider Sync Status section exists in all report formats (HTML, Markdown, JSON) and the CLI `status` command. Currently it shows **only operational sync health** (last success/failure timestamps). A user looking at this section cannot answer the questions they actually care about:
+
+- "Which providers am I exposed to?"
+- "How many models do I use from each provider — and which are deprecated?"
+- "Where in my codebase are these models referenced?"
+- "Which specific versions/snapshots am I on?"
+
+This creates a **disconnect** between sync health and actionable intelligence. The user must mentally cross-reference the Provider Sync Status with the deprecated models table below it.
+
+### UX Issues Identified (User Perspective)
+
+| # | Issue | Impact |
+|---|-------|--------|
+| 1 | No per-provider model count | Can't assess provider concentration/risk |
+| 2 | No model family grouping | Can't see GPT-4 family vs GPT-3.5 family breakdown |
+| 3 | No version summary | Can't tell if using old snapshots or latest |
+| 4 | No file/location summary | Can't identify where models are scattered |
+| 5 | No deprecation exposure indicator | Can't see "3/5 OpenAI models are deprecated" at a glance |
+| 6 | Raw ISO timestamps | "2025-05-27T14:30:00" is not human-scannable — needs "2h ago" |
+| 7 | No source type breakdown | env vs config vs source code have different migration difficulty |
+| 8 | No health/severity badge per provider | All providers look the same regardless of risk |
+| 9 | Sync status disconnected from scan results | Two separate mental models for the user |
+| 10 | No "freshness" indicator | Can't tell if sync data is stale without mental math |
+
+### Objectives
+
+Transform Provider Sync Status from a "sync health check" into a **Provider Intelligence Summary** that gives the user instant situational awareness.
+
+1. **Per-Provider Model Inventory**: Show total models detected per provider, with counts split by status (active / deprecating / warning / critical / sunset).
+2. **Model Family Grouping**: Group detected models by family within each provider (e.g., OpenAI → GPT-4 family: 2 models, GPT-3.5 family: 1 model).
+3. **Version Summary**: Show the specific model versions detected per family (e.g., `gpt-4o-2024-08-06`, `gpt-3.5-turbo`).
+4. **Detection Location**: Show which files each model was found in, with source type (env/config/source).
+5. **Human-Readable Timestamps**: Convert ISO timestamps to relative time ("2h ago", "3 days ago") with full timestamp on hover/title.
+6. **Health Badge Per Provider**: Color-coded badge: green (all active), yellow (some deprecating), orange (warnings), red (critical/sunset models present).
+7. **Freshness Indicator**: Show sync staleness with clear visual cue (fresh < 24h, aging 24-72h, stale > 72h).
+
+### Design (All Surfaces)
+
+#### JSON Output
+```json
+{
+  "sync_statuses": {
+    "openai": {
+      "last_success_at": "2025-05-27T14:30:00",
+      "last_failure_at": null,
+      "failure_reason": null,
+      "last_checked_at": "2025-05-27T14:30:00",
+      "freshness": "fresh",
+      "models_detected": 3,
+      "models_deprecated": 1,
+      "health": "warning",
+      "families": {
+        "GPT-4": {
+          "models": ["gpt-4o", "gpt-4o-mini"],
+          "deprecated_count": 0
+        },
+        "GPT-3.5": {
+          "models": ["gpt-3.5-turbo"],
+          "deprecated_count": 1
+        }
+      },
+      "detections": [
+        {"model": "gpt-4o", "file": ".env", "variable": "OPENAI_MODEL", "source_type": "env", "status": "active"},
+        {"model": "gpt-3.5-turbo", "file": ".env", "variable": "FALLBACK_MODEL", "source_type": "env", "status": "sunset"}
+      ]
+    }
+  }
+}
+```
+
+#### Markdown Output
+```
+### Provider Sync Status
+
+#### OpenAI — 🟡 Warning
+- **Sync**: ✅ 2h ago | **Models**: 3 detected, 1 deprecated
+- **Families**: GPT-4 (2 models, all active) · GPT-3.5 (1 model, 1 sunset)
+- **Detections**:
+  | Model | File | Variable | Source | Status |
+  |-------|------|----------|--------|--------|
+  | gpt-4o | .env | OPENAI_MODEL | env | active |
+  | gpt-3.5-turbo | .env | FALLBACK_MODEL | env | sunset |
+
+#### Anthropic — 🟢 Healthy
+- **Sync**: ✅ 2h ago | **Models**: 1 detected, 0 deprecated
+- **Families**: Claude 3.5 (1 model, all active)
+```
+
+#### HTML Output
+- Card-based layout per provider (replacing the flat table)
+- Color-coded header bar (green/yellow/orange/red) based on provider health
+- Collapsible detection details (model table shown on expand)
+- Relative timestamps with tooltip showing full ISO date
+- Badge showing "3 models · 1 deprecated" at a glance
+- Family pills/tags showing grouping
+
+#### CLI (`chowkidar status`)
+- Rich table enhanced with additional columns: Models Detected, Deprecated, Health
+- Colored health badge per provider row
+
+### Model Family Classification Logic
+
+Parse canonical model IDs into families using prefix/pattern rules:
+- `openai/gpt-4*` → "GPT-4" family
+- `openai/gpt-3.5*` → "GPT-3.5" family
+- `openai/o1*`, `openai/o3*`, `openai/o4*` → "O-series" family
+- `anthropic/claude-3.5*` → "Claude 3.5" family
+- `anthropic/claude-3-*` → "Claude 3" family
+- `anthropic/claude-*-4*` → "Claude 4" family
+- `google/gemini-2.5*` → "Gemini 2.5" family
+- `google/gemini-2.0*` → "Gemini 2.0" family
+- `google/gemini-1.5*` → "Gemini 1.5" family
+- `mistral/mistral-large*` → "Mistral Large" family
+- `mistral/mistral-small*` → "Mistral Small" family
+- `mistral/codestral*` → "Codestral" family
+
+### Implementation Plan
+
+| Step | What | Files Changed |
+|------|------|---------------|
+| 1 | Add `classify_model_family()` function | `scanner/patterns.py` |
+| 2 | Add helper `relative_time()` for human timestamps | `report.py` (or new `utils.py`) |
+| 3 | Extend `generate_report()` to compute per-provider summaries from scan data | `report.py` |
+| 4 | Redesign `_render_markdown()` Provider Sync Status section | `report.py` |
+| 5 | Redesign `_render_html()` Provider Sync Status section (card layout) | `report.py` |
+| 6 | Extend `_render_json()` with enriched sync_statuses structure | `report.py` |
+| 7 | Update CLI `status` command table | `cli.py` |
+| 8 | Update tests to cover new structure | `tests/test_report.py` |
+
+### Tradeoffs
+
+| Decision | Chosen | Alternative | Reason |
+|----------|--------|-------------|--------|
+| Where to compute summaries | In `generate_report()` at render time | Store in DB | Keeps DB schema simple; summaries are derived from scan + registry data |
+| Family classification | Pattern-based in `patterns.py` | LLM-based | Deterministic, fast, no external dependency |
+| Timestamp format | Relative with full ISO on hover | Always ISO | Much better UX; hover preserves precision |
+| HTML layout | Cards per provider | Enhanced flat table | Cards scale better, more scannable |
+| Backward compat (JSON) | Additive fields only | Breaking rename | Existing consumers continue to work |
+
+### Security Invariants
+- All enrichment is computed from local scan + registry data only (zero network)
+- HTML output continues to escape all dynamic values
+- No new user input surfaces (purely derived data)
+
+### Testing Plan
+- Unit test: `classify_model_family()` with known model IDs
+- Unit test: `relative_time()` with various deltas
+- Integration test: full report generation with enriched sync status
+- Regression: existing `test_report_with_sync_status` still passes
+- New test: verify JSON schema has new fields
+- New test: verify HTML contains provider cards with health badges
+- New test: verify Markdown contains family grouping
+
+---
+
+## Phase 20: QA Hardening — Notification Dedup + MCP Readiness (APPROVED)
+
+### Objectives
+
+1. Fix duplicate notification/report generation for identical deprecation events within cooldown (TS02_TC_19).
+2. Make MCP server reliably startable and auto-configured per detected IDE (TS03_TC_29).
+
+### Invariants
+
+- Identical `(project, model, threshold, file, variable)` within cooldown → at most one delivered notification.
+- `chowkidar mcp --verify` exits 0 when `.chowkidar/` exists, mcp SDK installed, and IDE config written.
+- MCP stdio transport never writes non-JSON to stdout.
+
+### Acceptance criteria
+
+- TS02_TC_19 automated test passes.
+- TS03_TC_29 automated test passes.
+- Full pytest suite green.
+
 
