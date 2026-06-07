@@ -1,7 +1,7 @@
 # Chowkidar
 
-[![PyPI Version](https://img.shields.io/badge/pypi-v0.9.2-blue)](https://pypi.org/project/chowkidar/0.9.2/)
-[![GitHub Release](https://img.shields.io/badge/release-v0.9.2-blue)](https://github.com/bhav09/chowkidar/releases/latest)
+[![PyPI Version](https://img.shields.io/badge/pypi-v0.9.3-blue)](https://pypi.org/project/chowkidar/0.9.3/)
+[![GitHub Release](https://img.shields.io/badge/release-v0.9.3-blue)](https://github.com/bhav09/chowkidar/releases/latest)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/chowkidar?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/chowkidar)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -9,92 +9,84 @@
 
 Everything runs on your machine. Zero data exfiltration.
 
----
-
 ## Core Features
 
-Chowkidar is packed with features designed to establish production-grade trust, safety, and correctness across all user-facing workflows:
+Chowkidar is a production-grade intelligence platform that empowers developers to make correct, risk-aware decisions and seamlessly automate LLM model migrations:
 
-### 1. Multi-Format Code & Config Scanner
-- Scans and parses model strings in `.env`, JSON, YAML, TOML, `docker-compose.yml`, and source code files.
-- Features intelligent pattern matching that normalizes model strings to canonical IDs (e.g., `gpt-4o-2024-08-06` → `openai/gpt-4o-2024-08-06`).
+### 1. Automated Model Discovery & Normalization
+- Automatically detects and normalizes active LLM model references across your project.
+- Ensures all references are mapped to canonical provider IDs for accurate tracking and analysis.
 
-### 2. Local SQLite Deprecation Registry
-- Maintains a local SQLite database at `.chowkidar/registry.db` within the project root.
-- Periodically syncs deprecation and sunset schedules from major providers (OpenAI, Anthropic, Google Gemini, Mistral) securely and locally.
+### 2. Local-First Deprecation Intelligence
+- Maintains a secure, local-first database of provider sunset schedules to provide instant offline answers.
+- Keeps you informed of upcoming deprecations without ever uploading your project paths or configurations.
 
-### 3. Local SLM Integration (Ollama)
-- Integrates with local Ollama instances (`gemma3:1b`, `qwen2.5:0.5b`, or custom installed models).
-- Uses local SLM to parse complex unstructured deprecation blog posts and enrich migration recommendations (purpose, reason, risk, confidence) when models are expiring.
+### 3. AI-Powered Migration Advisory
+- Leverages local Small Language Models (SLMs) to parse unstructured deprecation announcements and enrich recommendations with deep contextual reasoning.
+- Provides clear explanations of why a model is deprecating, the risks of staying, and the confidence level of the proposed successor.
 
-### 4. Context-Driven Use Case Classification
-- Automatically analyzes file paths, variable names, and code context to classify model references into distinct use cases (`coding`, `agents/reasoning`, `embeddings/search`, `extraction/structured`, `tests/eval`, `chat/general`).
+### 4. Intelligent Use-Case Classification
+- Automatically classifies how each model is used (e.g., coding, reasoning, extraction, chat) to ensure replacement recommendations align with your actual workloads.
 
-### 5. Specialized Use Case Recommendations
-- Suggests highly targeted alternative models tailored to your specific use case (e.g., Qwen 2.5 Coder and Claude 3.5 Sonnet for `coding` tasks; DeepSeek R1 and OpenAI O1 for `agents/reasoning`).
+### 5. Precision Replacement Matching
+- Maps deprecating models to specialized, high-performance successors tailored specifically to your project's needs.
 
-### 6. Unified Risk & Capability Analysis
-- Compares critical model capabilities (context window, max output tokens, vision, tool use, JSON mode, streaming) between old and recommended models to prevent regression.
-- Provides detailed capability deltas (improved, same, degraded, gained, lost).
+### 6. Capability Regression Guard
+- Compares critical model features (context size, output tokens, vision, tools, streaming) to guarantee that migrations never degrade system capabilities.
+- Highlights exact capability deltas so you can make informed architectural decisions.
 
-### 7. Token Cost-Difference Percentage Comparison
-- Features a built-in FinOps pricing engine with baseline pricing definitions for leading open-source and commercial models.
-- Dynamically calculates input/output token price variations in percentage terms, displaying clear, colored badges (e.g., "saves ~69%" or "costs ~120% more").
+### 7. FinOps Cost-Impact Analytics
+- Features a built-in pricing engine with baseline pricing definitions for leading open-source and commercial models.
+- Calculates precise input/output token price deltas in percentage terms, giving you immediate financial visibility into migration decisions.
 
-### 8. Provider Sync Status & Intelligence Summary
-- Displays a comprehensive summary of provider sync health, sync freshness, and per-provider model inventory.
-- Groups detected models by family, showing specific versions, detection locations, and relative timestamps ("2h ago", "3 days ago").
-- Color-coded health badges per provider based on deprecation risk (green, yellow, orange, red).
+### 8. Provider Risk & Concentration Intelligence
+- Groups models by family and version to visualize provider dependencies, exposure levels, and sync freshness.
+- Displays color-coded health badges per provider based on deprecation risk.
 
-### 9. Interactive Reports (HTML, Markdown, JSON)
-- Generates beautiful, self-contained interactive HTML reports with expandable detailed panels, capability comparison grids, and cost-impact badges.
-- Generates clean Markdown reports with a detailed model-by-model appendix, and structured JSON output for tool integration.
+### 9. Multi-Format Executive & Technical Reporting
+- Generates beautiful interactive HTML dashboards, clean Markdown summaries, and structured JSON for comprehensive decision-making.
 
-### 10. Background Daemon & OS-Native Services
-- Periodically monitors your repositories (every 4 hours) for deprecations.
-- Installs as an OS-native service (launchd on macOS, systemd on Linux, Task Scheduler on Windows) for silent background monitoring.
+### 10. Continuous Background Monitoring
+- Runs silently as an OS-native service to continuously watch your repositories and keep deprecation risks visible.
 
-### 11. Notification-First Governance
-- Fires native OS desktop alerts and webhooks (Slack, Discord, generic) at configurable thresholds (30 days, 15 days, 7 days, and 1 day before sunset).
+### 11. Proactive Multi-Channel Alerting
+- Delivers native OS desktop notifications and webhook alerts (Slack/Discord) at critical thresholds (30, 15, 7, and 1 day) before sunset.
 
-### 12. Notification Deduplication & Cooldown
-- Tracks `(model, project, threshold, file, variable)` to avoid duplicate alerts and spam within a configurable cooldown window (default 24 hours).
+### 12. Smart Alert Deduplication
+- Suppresses repeat alerts within cooldown windows to prevent notification fatigue while keeping critical issues highlighted.
 
-### 13. Alert Silencing & Overrides (Pinning & Snoozing)
-- Permanently suppress notifications for a specific model ID with `pin`.
-- Temporarily mute alerts for a model ID for a specified number of days with `snooze`.
+### 13. Granular Alert Control (Pinning & Snoozing)
+- Allows you to temporarily snooze or permanently pin specific models with documented reasons for custom governance.
 
-### 14. Safe Config Updates (Atomic Writes & Backups)
-- Safely auto-updates structured configuration files with atomic writes (write-to-temp + `os.replace` pattern), automatic backups (`.env.bak`), and system-level `filelock` to prevent concurrent write corruption.
+### 14. Atomic Configuration Migrations
+- Safely applies updates with atomic writes, automatic backups, and system-level file locking to prevent configuration corruption.
 
-### 15. Deployment Signal Detector
-- Analyzes repository evidence (CI, Docker, Kubernetes, Vercel, Terraform) to flag likely deployed environments, preventing blind or risky local writes.
+### 15. Deployment Environment Safeguard
+- Detects CI, Docker, Kubernetes, and cloud signals to prevent accidental local updates from breaking deployed environments.
 
-### 16. Cloud Environment Adapters
-- Explicit, contract-ready adapter interface designed for dry-running, updating, and verifying remote secret/config stores on Vercel, Kubernetes, AWS Secrets/SSM, GCP Secret Manager, and Azure Key Vault.
+### 16. Enterprise Cloud Secret Adapters
+- Provides a contract-ready interface to dry-run, update, and verify remote secrets across Vercel, AWS, GCP, Azure, and Kubernetes.
 
-### 17. AI-Assistant Rules Integration
-- Generates zero-config rule instructions (`.mdc`, `CLAUDE.md`, etc.) to guide Cursor, Claude Code, Copilot, and Windsurf, enabling AI editors to auto-discover deprecation instructions.
+### 17. Zero-Config AI Editor Rules
+- Auto-generates context rules (`.mdc`, `CLAUDE.md`, etc.) so that AI editors (Cursor, Claude Code, Copilot, Windsurf) automatically avoid deprecated models.
 
-### 18. Model Context Protocol (MCP) Server
-- Launches a stdio-based MCP server that auto-configures itself for Cursor (`.cursor/mcp.json`), VS Code (`.vscode/mcp.json`), Claude Code (`.claude/settings.json`), and Windsurf (`.windsurf/mcp.json`).
+### 18. Active IDE-Level MCP Integration
+- Exposes a stdio-based MCP server that auto-configures itself to provide real-time deprecation intelligence directly to your AI assistants.
 
-### 19. Interactive Terminal TUI Dashboard
-- Launches an interactive terminal-based TUI to visualize model deprecation risk across all watched repositories.
+### 19. Terminal-Based TUI Dashboard
+- Provides an interactive, keyboard-driven dashboard to visualize deprecation risk across all watched repositories.
 
-### 20. CI/CD Gate Integration
-- Integrates with CI/CD systems or git pre-commit hooks to block builds if critical or sunset-passed models are found.
+### 20. CI/CD Build Gates
+- Integrates with CI pipelines or pre-commit hooks to block builds if critical or sunset-passed models are found.
 
-### 21. Shell Warnings Hook
-- Installs a lightweight shell hook that displays quick model deprecation warning alerts on directory changes (`cd`).
+### 21. Shell Directory Change Warnings
+- Installs a lightweight shell hook that alerts you directly in your terminal when entering a directory with deprecated models.
 
-### 22. Migration Testing & Output Comparison
-- Executes dry-run completions on both old and new model candidates to compare prompt response outputs and prevent regressions.
+### 22. Comparative Output Testing
+- Runs dry-run completions on old and new candidates to compare prompt response outputs and prevent regression.
 
-### 23. Lifespan Prediction
-- Uses historical release and sunset data to estimate the deprecation probability and lifespan of models in use.
-
----
+### 23. Predictive Lifespan Analytics
+- Estimates model deprecation probability and remaining lifespan using historical release and sunset patterns.
 
 ## Installation & Project Setup
 
@@ -117,8 +109,6 @@ You can customize behavior inside `.chowkidar/config.toml` or via the CLI:
 # Change directory scan depth
 chowkidar config discover_max_depth 5
 ```
-
----
 
 ## Top 10 CLI Commands
 
@@ -156,8 +146,6 @@ Generates comprehensive Markdown, JSON, or interactive HTML reports.
 
 See [COMMANDS.md](COMMANDS.md) for the complete reference containing all available CLI commands.
 
----
-
 ## Editor Integration
 
 ### Passive AI Rules (Zero-Config)
@@ -180,15 +168,11 @@ Configure the stdio MCP server in your IDE's configuration file:
 }
 ```
 
----
-
 ## Security & Local Safety
 
 - **Privacy First**: No code, project paths, keys, or configurations are ever sent to external APIs.
 - **Safe Writes**: Modifying configuration files requires setting `auto_update = true` in your config. Every update atomic-writes via a temp file and saves a `.chowkidar.bak` file for automatic rollback.
 - **Concurrent-Safe**: Uses system-level `filelock` to protect files from concurrent daemon/CLI writes.
-
----
 
 ## License
 
