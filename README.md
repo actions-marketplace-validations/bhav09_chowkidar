@@ -1,162 +1,184 @@
 # Chowkidar
 
-[![PyPI Version](https://img.shields.io/badge/pypi-v0.9.3-blue)](https://pypi.org/project/chowkidar/0.9.3/)
-[![GitHub Release](https://img.shields.io/badge/release-v0.9.3-blue)](https://github.com/bhav09/chowkidar/releases/latest)
+*Chowkidar* (चौकीदार) means **watch guard** in Hindi — a local sentinel that keeps watch over the LLM models in your codebase so deprecated models never take production down.
+
+[![PyPI Version](https://img.shields.io/badge/pypi-v0.9.5-blue)](https://pypi.org/project/chowkidar/0.9.5/)
+[![GitHub Release](https://img.shields.io/badge/release-v0.9.5-blue)](https://github.com/bhav09/chowkidar/releases/latest)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/chowkidar?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/chowkidar)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Chowkidar** is a secure, local-first LLM model deprecation watchdog. It scans your codebase and configuration files for LLM model references, cross-references them with a locally cached deprecation database, and alerts you before models sunset.
 
-Everything runs on your machine. Zero data exfiltration.
+By default everything runs on your machine with zero data exfiltration. Remote cloud advisory classification is strictly **opt-in** for CI/CD environments where a local SLM is unavailable.
 
-## Core Features
+## Architecture
 
-Chowkidar is a production-grade intelligence platform that empowers developers to make correct, risk-aware decisions and seamlessly automate LLM model migrations:
+```mermaid
+flowchart TD
+    subgraph input [Input]
+        scan[Scan: .env, YAML, TOML, source code]
+        cloud[Cloud secrets: AWS, GCP, Azure, Vercel, K8s]
+    end
 
-### 1. Automated Model Discovery & Normalization
-- Automatically detects and normalizes active LLM model references across your project.
-- Ensures all references are mapped to canonical provider IDs for accurate tracking and analysis.
+    subgraph registry [Local Registry]
+        sync[Provider sync: OpenAI, Anthropic, Google, Mistral]
+        db[(SQLite registry.db)]
+    end
 
-### 2. Local-First Deprecation Intelligence
-- Maintains a secure, local-first database of provider sunset schedules to provide instant offline answers.
-- Keeps you informed of upcoming deprecations without ever uploading your project paths or configurations.
+    subgraph advisory [Hybrid Advisory Engine]
+        cache{advisory_cache.json hit?}
+        tier1{Cloud advisory enabled?}
+        tier2{Local SLM available?}
+        remote[Remote connectors: OpenAI / Anthropic / Gemini / Mistral]
+        slm[Local SLM: Ollama]
+        heuristics[Deterministic heuristics]
+    end
 
-### 3. AI-Powered Migration Advisory
-- Leverages local Small Language Models (SLMs) to parse unstructured deprecation announcements and enrich recommendations with deep contextual reasoning.
-- Provides clear explanations of why a model is deprecating, the risks of staying, and the confidence level of the proposed successor.
+    subgraph validation [Validation Envelope]
+        capGuard[Capability regression guard]
+        localReg[Local registry successor mapping]
+    end
 
-### 4. Intelligent Use-Case Classification
-- Automatically classifies how each model is used (e.g., coding, reasoning, extraction, chat) to ensure replacement recommendations align with your actual workloads.
+    subgraph output [Output]
+        alerts[Desktop / Slack / Discord alerts]
+        rules[IDE rules: Cursor, Claude, Copilot, Windsurf]
+        mcp[MCP server]
+        report[HTML / Markdown / JSON reports]
+    end
 
-### 5. Precision Replacement Matching
-- Maps deprecating models to specialized, high-performance successors tailored specifically to your project's needs.
+    scan --> db
+    cloud --> scan
+    sync --> db
+    scan --> cache
+    cache -->|miss| tier1
+    tier1 -->|yes| remote
+    tier1 -->|no| tier2
+    tier2 -->|yes| slm
+    tier2 -->|no| heuristics
+    remote --> capGuard
+    slm --> capGuard
+    heuristics --> capGuard
+    capGuard --> localReg
+    localReg --> alerts
+    localReg --> rules
+    localReg --> mcp
+    localReg --> report
+```
 
-### 6. Capability Regression Guard
-- Compares critical model features (context size, output tokens, vision, tools, streaming) to guarantee that migrations never degrade system capabilities.
-- Highlights exact capability deltas so you can make informed architectural decisions.
+**Flow in plain terms:** Chowkidar scans your project (and optionally cloud secret stores), syncs provider deprecation data into a local database, classifies each model's usage purpose through a three-tier engine (remote API → local SLM → heuristics), then applies deterministic successor selection and capability validation before alerting you or updating IDE rules.
 
-### 7. FinOps Cost-Impact Analytics
-- Features a built-in pricing engine with baseline pricing definitions for leading open-source and commercial models.
-- Calculates precise input/output token price deltas in percentage terms, giving you immediate financial visibility into migration decisions.
+## Why Chowkidar?
 
-### 8. Provider Risk & Concentration Intelligence
-- Groups models by family and version to visualize provider dependencies, exposure levels, and sync freshness.
-- Displays color-coded health badges per provider based on deprecation risk.
+In the rapidly evolving landscape of Large Language Models, providers (OpenAI, Anthropic, Google, Mistral) deprecate and sunset models at an unprecedented pace. When a model sunsets, your application's API calls fail — leading to **immediate production outages, broken user experiences, and lost revenue**.
 
-### 9. Multi-Format Executive & Technical Reporting
-- Generates beautiful interactive HTML dashboards, clean Markdown summaries, and structured JSON for comprehensive decision-making.
+Chowkidar acts as your automated, local-first sentinel to eliminate this risk.
 
-### 10. Continuous Background Monitoring
-- Runs silently as an OS-native service to continuously watch your repositories and keep deprecation risks visible.
+### What It Does For You
 
-### 11. Proactive Multi-Channel Alerting
-- Delivers native OS desktop notifications and webhook alerts (Slack/Discord) at critical thresholds (30, 15, 7, and 1 day) before sunset.
+- **Continuous Codebase & Cloud Auditing**: Scans repositories, environment variables, GitHub Secrets, and cloud provider secret stores (AWS, GCP, Azure, Vercel, Kubernetes) for active LLM model references.
+- **Proactive Multi-Channel Alerting**: Warns you via desktop notifications, Slack Block Kit, or Discord webhooks at critical thresholds (30, 15, 7, and 1 day) before a model sunsets.
+- **Hybrid Purpose Classification**: Three-tier advisory engine — opt-in remote cloud connectors, local Ollama SLM, or offline heuristics — classifies how you use each model (coding, reasoning, embeddings, chat).
+- **Deterministic Successor Selection**: Remote LLMs classify purpose only; successor models and capability validation always come from Chowkidar's local registry and capability regression guard.
+- **Automated, Safe Migrations**: Previews and applies atomic updates to configuration files with automatic backups and rollback support.
+- **AI Editor Alignment**: Generates passive workspace rules and runs an active MCP server so AI coding assistants (Cursor, Claude Code, Copilot, Windsurf) never write deprecated models.
 
-### 12. Smart Alert Deduplication
-- Suppresses repeat alerts within cooldown windows to prevent notification fatigue while keeping critical issues highlighted.
+### The Value You Get
 
-### 13. Granular Alert Control (Pinning & Snoozing)
-- Allows you to temporarily snooze or permanently pin specific models with documented reasons for custom governance.
+- **Zero Production Outages**: Migrate well in advance of provider deadlines.
+- **Privacy by Default**: Runs locally and offline. Opt-in cloud advisory sends only minimized, redacted code snippets — never full files or secrets.
+- **No Capability Regressions**: Compares context size, output tokens, vision, and tool-use support before recommending successors.
+- **Immediate FinOps Savings**: Built-in cost-impact engine shows input/output token price deltas in percentage terms before you migrate.
+- **Zero-Config Developer Experience**: `chowkidar setup` auto-configures your workspace, IDE rules, and background daemon in seconds.
 
-### 14. Atomic Configuration Migrations
-- Safely applies updates with atomic writes, automatic backups, and system-level file locking to prevent configuration corruption.
-
-### 15. Deployment Environment Safeguard
-- Detects CI, Docker, Kubernetes, and cloud signals to prevent accidental local updates from breaking deployed environments.
-
-### 16. Enterprise Cloud Secret Adapters
-- Provides a contract-ready interface to dry-run, update, and verify remote secrets across Vercel, AWS, GCP, Azure, and Kubernetes.
-
-### 17. Zero-Config AI Editor Rules
-- Auto-generates context rules (`.mdc`, `CLAUDE.md`, etc.) so that AI editors (Cursor, Claude Code, Copilot, Windsurf) automatically avoid deprecated models.
-
-### 18. Active IDE-Level MCP Integration
-- Exposes a stdio-based MCP server that auto-configures itself to provide real-time deprecation intelligence directly to your AI assistants.
-
-### 19. Terminal-Based TUI Dashboard
-- Provides an interactive, keyboard-driven dashboard to visualize deprecation risk across all watched repositories.
-
-### 20. CI/CD Build Gates
-- Integrates with CI pipelines or pre-commit hooks to block builds if critical or sunset-passed models are found.
-
-### 21. Shell Directory Change Warnings
-- Installs a lightweight shell hook that alerts you directly in your terminal when entering a directory with deprecated models.
-
-### 22. Comparative Output Testing
-- Runs dry-run completions on old and new candidates to compare prompt response outputs and prevent regression.
-
-### 23. Predictive Lifespan Analytics
-- Estimates model deprecation probability and remaining lifespan using historical release and sunset patterns.
-
-## Installation & Project Setup
+## Quick Start
 
 ```bash
-# 1. Install chowkidar in your project directory
+# Install
 pip install chowkidar
 
-# 2. Run the idempotent project-scoped setup
+# Interactive project setup (config, DB, provider sync, initial scan, IDE rules)
+chowkidar setup
+
+# One-command demo: sync → scan → HTML report → open in browser
+chowkidar showcase
+```
+
+## Setup & Configuration Guide
+
+### For Human Developers
+
+#### Local Installation & Project Initialization
+
+```bash
+pip install chowkidar
 chowkidar setup
 ```
 
-### Project-Scoped Monitoring
+`chowkidar setup` creates `.chowkidar/` (config + SQLite DB), syncs deprecation data, scans your project, and writes IDE rules.
 
-The `chowkidar setup` command provides a zero-friction setup that configures everything for your project:
-1. **Config & Database**: Creates your config and database files under `.chowkidar/` inside your project root.
-2. **Initial Scan & Sync**: Syncs provider deprecation tables and performs an immediate first-time scan on the repository to initialize alerts. (Note: IDE rule files are generated and updated automatically by the background daemon during monitoring cycles, or manually via `chowkidar rules write`).
+#### Continuous Background Monitoring
 
-You can customize behavior inside `.chowkidar/config.toml` or via the CLI:
 ```bash
-# Change directory scan depth
-chowkidar config discover_max_depth 5
+chowkidar daemon
 ```
 
-## Top 10 CLI Commands
+The daemon monitors watched projects and triggers alerts at 30, 15, 7, and 1 day before expiry.
 
-Below are the 10 most relevant commands for daily use.
+#### Cloud Advisory (Opt-In, for CI/CD)
 
-### 1. `chowkidar setup`
-Project-scoped configuration, database initialization, provider sync, and initial repository scan.
+When Ollama is unavailable (e.g. GitHub Actions), enable remote purpose classification:
 
-### 2. `chowkidar sync`
-Fetches and updates the local deprecation registry from providers.
+```toml
+# .chowkidar/config.toml
+cloud_advisory_enabled = true
+cloud_advisory_provider = "openai"   # openai | anthropic | google | mistral
+cloud_advisory_model = "gpt-4o-mini"
+```
 
-### 3. `chowkidar scan`
-Locates all LLM model references within your code and configuration files.
+```bash
+export CHOWKIDAR_OPENAI_API_KEY="sk-..."
+```
 
-### 4. `chowkidar check`
-Cross-references detected model strings against the deprecation registry.
+Remote connectors batch-classify purposes with strict timeouts, secret redaction, and automatic fallback to local heuristics. They never select successor models.
 
-### 5. `chowkidar status`
-Displays watched projects, sync freshness, and background daemon health.
+#### Cloud & CI/CD Deployment
 
-### 6. `chowkidar watch`
-Registers a project path with the background daemon for periodic scans.
+**GitHub Actions:**
 
-### 7. `chowkidar daemon`
-Starts the background monitoring loop (sends alerts at 30, 15, 7, and 1 day before expiry).
+```yaml
+name: Chowkidar Watchdog
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * 1'
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Chowkidar
+        uses: bhav09/chowkidar@v0.9.5
+        with:
+          gate: true
+          slack_webhook: ${{ secrets.SLACK_WEBHOOK }}
+```
 
-### 8. `chowkidar update`
-Previews (via `--dry-run`) or applies safe updates of deprecated model strings in structured configuration files (such as `.env`, JSON, YAML, TOML, and `docker-compose.yml`).
+**Docker:**
 
-### 9. `chowkidar mcp`
-Launches the stdio MCP server for active IDE-level AI assistant queries.
+```bash
+docker run -d \
+  -v $(pwd)/.chowkidar:/app/.chowkidar \
+  -e CHOWKIDAR_SLACK_WEBHOOK="https://hooks.slack.com/services/..." \
+  bhavishya/chowkidar:latest
+```
 
-### 10. `chowkidar report`
-Generates comprehensive Markdown, JSON, or interactive HTML reports.
+### For AI Agents & IDEs
 
-See [COMMANDS.md](COMMANDS.md) for the complete reference containing all available CLI commands.
+**Passive (workspace rules):** `chowkidar setup` or `chowkidar rules write` generates rules for Cursor, Claude Code, Copilot, and Windsurf.
 
-## Editor Integration
+**Active (MCP):** Add to your IDE's MCP config:
 
-### Passive AI Rules (Zero-Config)
-AI editors auto-discover instructions in your project workspace. Chowkidar outputs non-destructive rule tables:
-- **Cursor**: `.cursor/rules/chowkidar-alerts.mdc`
-- **Claude Code**: `.claude/rules/chowkidar-alerts.md`
-- **VS Code / Copilot**: `.github/copilot-instructions.md`
-- **Windsurf**: `.windsurfrules`
-
-### MCP Server (Active)
-Configure the stdio MCP server in your IDE's configuration file:
 ```json
 {
   "mcpServers": {
@@ -168,11 +190,31 @@ Configure the stdio MCP server in your IDE's configuration file:
 }
 ```
 
+## Top 5 CLI Commands
+
+### 1. `chowkidar showcase`
+One-command demo run: syncs provider data, scans your project, generates an interactive HTML report, and opens it in your browser. Best way to see Chowkidar in action.
+
+### 2. `chowkidar setup`
+Project-scoped configuration, database initialization, provider sync, initial scan, and IDE rules generation.
+
+### 3. `chowkidar scan`
+Locates all LLM model references in your code and configuration files.
+
+### 4. `chowkidar check`
+Cross-references detected model strings against the deprecation registry and prints inline warnings.
+
+### 5. `chowkidar report`
+Generates comprehensive Markdown, JSON, or interactive HTML deprecation reports.
+
+See [COMMANDS.md](COMMANDS.md) for the complete command reference.
+
 ## Security & Local Safety
 
-- **Privacy First**: No code, project paths, keys, or configurations are ever sent to external APIs.
-- **Safe Writes**: Modifying configuration files requires setting `auto_update = true` in your config. Every update atomic-writes via a temp file and saves a `.chowkidar.bak` file for automatic rollback.
-- **Concurrent-Safe**: Uses system-level `filelock` to protect files from concurrent daemon/CLI writes.
+- **Privacy First**: No code, secrets, or project paths leave your machine unless you explicitly enable `cloud_advisory_enabled`. When enabled, only minimized, redacted context snippets are sent.
+- **Safe Writes**: File modifications require `auto_update = true`. Every update uses atomic writes and saves a `.chowkidar.bak` backup.
+- **Concurrent-Safe**: System-level `filelock` prevents corruption from concurrent daemon/CLI writes.
+- **Capability Guard**: Successor recommendations are validated against capability regressions before any auto-write is allowed.
 
 ## License
 

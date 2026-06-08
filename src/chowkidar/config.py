@@ -72,6 +72,10 @@ DEFAULTS: dict[str, Any] = {
     "benchmarks_retry_backoff_max": 30.0,
     "benchmarks_max_payload_mb": 5,
     "benchmarks_stale_threshold_hours": 72,
+    "cloud_advisory_enabled": False,
+    "cloud_advisory_provider": "openai",
+    "cloud_advisory_model": "gpt-4o-mini",
+    "cloud_advisory_timeout_seconds": 5.0,
 }
 
 

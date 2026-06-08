@@ -1,0 +1,60 @@
+name: 'Chowkidar LLM Deprecation Watchdog'
+description: 'Scans code and configurations for deprecated LLM models, audits cloud secrets, and alerts via Slack/Discord.'
+author: 'Bhavishya'
+inputs:
+  path:
+    description: 'Path to scan'
+    required: false
+    default: '.'
+  secrets_json:
+    description: 'JSON string of repository secrets'
+    required: false
+    default: '{}'
+  vars_json:
+    description: 'JSON string of repository variables'
+    required: false
+    default: '{}'
+  slack_webhook:
+    description: 'Slack webhook URL for alerts'
+    required: false
+    default: ''
+  discord_webhook:
+    description: 'Discord webhook URL for alerts'
+    required: false
+    default: ''
+  auto_update:
+    description: 'Automatically update deprecated model strings'
+    required: false
+    default: 'false'
+  gate:
+    description: 'Fail the build if critical or sunset models are found'
+    required: false
+    default: 'false'
+  environment:
+    description: 'Environment tag (e.g., production, staging)'
+    required: false
+    default: 'production'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install .
+    - name: Run Chowkidar Action
+      shell: bash
+      env:
+        CHOWKIDAR_SECRETS_JSON: ${{ inputs.secrets_json }}
+        CHOWKIDAR_VARS_JSON: ${{ inputs.vars_json }}
+        CHOWKIDAR_SLACK_WEBHOOK: ${{ inputs.slack_webhook }}
+        CHOWKIDAR_DISCORD_WEBHOOK: ${{ inputs.discord_webhook }}
+        CHOWKIDAR_AUTO_UPDATE: ${{ inputs.auto_update }}
+        CHOWKIDAR_GATE: ${{ inputs.gate }}
+        CHOWKIDAR_ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        python -m chowkidar.github_action --path "${{ inputs.path }}"

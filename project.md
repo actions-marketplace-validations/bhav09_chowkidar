@@ -416,3 +416,36 @@ Parse canonical model IDs into families using prefix/pattern rules:
 - Full pytest suite green.
 
 
+---
+
+## Phase 21: Chowkidar Cloud Ecosystem Integration (PENDING APPROVAL)
+
+### Objectives
+
+1. **Concrete Cloud Environment Adapters**: Fully implement the AWS, GCP, Azure, Vercel, and Kubernetes adapters to read, dry-run, write, and verify secrets.
+2. **Official GitHub Action**: Create a native GitHub Action (`action.yml` and `github_action.py`) for scheduled and PR-driven repository scans.
+3. **The Gitignored Env Solution**: Implement in-memory secrets and variables scanning, automated decryption of encrypted env files (`.env.vault`/`.env.enc`), and OIDC-federated cloud secret auditing to handle gitignored configuration files in CI/CD.
+4. **Dockerization**: Package Chowkidar in a production-ready Docker container and provide Kubernetes CronJob manifests.
+5. **Interactive Slack Block Kit**: Upgrade Slack notifications to rich, interactive Block Kit payloads with snooze, pin, and auto-fix actions.
+
+### Invariants & Guardrails
+
+- **Cryptographic Safety**: Gitignored secrets and variables parsed in CI/CD must be processed entirely in-memory and never written to disk or logged.
+- **Secret Redaction Engine**: Automatic masking of sensitive API keys and credentials in all logs, tracebacks, and reports.
+- **OIDC-Federated Auditing**: Support credential-less cloud authentication using OpenID Connect for AWS, GCP, and Azure in GitHub Actions.
+- **Least-Privilege Kubernetes RBAC**: Bounded Kubernetes Role/RoleBinding restricting secret access to specific namespaces.
+- **Slack Socket Mode Support**: Secure, WebSocket-based interactive callbacks for private/firewalled cloud daemons without exposing public HTTP endpoints.
+- **Multi-Environment Isolation**: Partition and track deprecation risks separately per environment (e.g., development, staging, production).
+- **Explicit Cloud Consent**: Cloud adapters must only write/update secrets if `auto_update = true` is explicitly configured.
+- **Regression Safety**: The existing 185 tests must remain fully functional and green.
+
+### Acceptance Criteria
+
+- All cloud adapters (AWS, GCP, Azure, Vercel, Kubernetes) are fully implemented and covered by unit tests.
+- GitHub Action integration parses in-memory secrets/variables and is covered by unit tests.
+- Slack Block Kit payloads and Socket Mode callbacks are validated and covered by unit tests.
+- Secret Redaction Engine is fully tested and verified.
+- Full pytest suite is green.
+
+
+

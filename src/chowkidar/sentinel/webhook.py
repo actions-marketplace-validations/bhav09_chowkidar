@@ -44,6 +44,33 @@ def _send_slack(url: str, title: str, message: str, urgency: str) -> bool:
                     "type": "section",
                     "text": {"type": "mrkdwn", "text": message},
                 },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "🔧 Auto-Fix"},
+                            "style": "primary",
+                            "value": "auto_fix_clicked",
+                            "action_id": "auto_fix_action"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "⏰ Snooze Alert"},
+                            "value": "snooze_clicked",
+                            "action_id": "snooze_action"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "📖 View Documentation"},
+                            "url": "https://github.com/bhav09/chowkidar",
+                            "action_id": "view_docs_action"
+                        }
+                    ]
+                }
             ],
         }],
     }

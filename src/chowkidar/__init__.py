@@ -1,3 +1,3 @@
 """Chowkidar — Local-first LLM model deprecation watchdog."""
 
-__version__ = "0.9.3"
+__version__ = "0.9.5"

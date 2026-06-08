@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: chowkidar-watchdog
+  namespace: default
+spec:
+  schedule: "0 */12 * * *" # Run every 12 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: chowkidar-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: chowkidar
+              image: bhavishya/chowkidar:latest
+              imagePullPolicy: IfNotPresent
+              command: ["chowkidar", "sync", "&&", "chowkidar", "check"]
+              env:
+                - name: CHOWKIDAR_ENVIRONMENT
+                  value: "production"
+                - name: CHOWKIDAR_SLACK_WEBHOOK
+                  valueFrom:
+                    secretKeyRef:
+                      name: chowkidar-secrets
+                      key: slack-webhook
+                - name: cloud_kubernetes_enabled
+                  value: "true"
+                - name: cloud_kubernetes_namespace
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace

@@ -120,10 +120,12 @@ def build_recommendation(
     registry: Registry | None = None,
     variable_name: str | None = None,
     file_path: str | None = None,
+    use_case: str | None = None,
 ) -> Recommendation:
     """Build a validated recommendation from registry data plus optional fallback advice."""
     current_canonical = normalize_model_id(current_model)
-    use_case = classify_use_case(variable_name, file_path, current_canonical)
+    if use_case is None:
+        use_case = classify_use_case(variable_name, file_path, current_canonical)
     source = "none"
     recommended: str | None = None
     confidence = "none"
